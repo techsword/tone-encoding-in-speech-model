@@ -2,6 +2,7 @@ import glob
 import math
 import os
 import pickle
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -260,7 +261,7 @@ def find_pretrain_color_palette():
     results_path = './results/pretrained_pipeline_results'
     all_results = read_results(results_path)
     df = pd.DataFrame(all_results)
-    df['training_data'] = df.model.map(lambda x: x.split('-')[0])
+    df['training_data'] = df.model.map(lambda x: parse_pretrain_modelname(x)[0])
 
     
     color_palette = ['#7fc97f', '#fdc086']
@@ -273,6 +274,27 @@ def find_pretrain_color_palette():
     color_mapping['f0'] = '#5f57db'
 
     return color_mapping
+
+def parse_pretrain_modelname(modelname):
+    """Return (training_data, epoch, num_steps) from a pretrain result name.
+
+    Two naming schemes are supported:
+
+    * Hugging Face hub + revision, e.g. ``wav2vec2-base-english-librispeech730h-ckpt-5000``.
+      The branch encodes the training step, so ``epoch`` is None.
+    * Legacy local fairseq checkpoint, e.g.
+      ``wav2vec2-base-librispeech-checkpoint-15-5000`` (or the
+      underscore form ``...checkpoint_15_5000``). Epoch and step are both in
+      the name.
+    """
+    hub_match = re.search(r'ckpt-(\d+)', modelname)
+    if hub_match is not None:
+        training_data = 'librispeech' if 'librispeech' in modelname else 'magicdata'
+        return training_data, None, int(hub_match.group(1))
+    name = modelname.replace('_', '-').replace('wav2vec2-base-', '')
+    training_data, _, epoch, num_steps = name.split('-')
+    return training_data, int(epoch), int(num_steps)
+
 
 def get_pretrain_conversion(file_pattern = 'data/epoch_maps/*-epoch-to-updates.txt'):
     epoch_to_update_conversion_files = glob.glob(file_pattern)
@@ -295,12 +317,18 @@ def plot_pretrain():
     results_path = './results/pretrained_pipeline_results'
     all_results = read_results(results_path)
     df = pd.DataFrame(all_results).drop(['cm','datasetname', 'cnn_flag'],axis = 1)
-    df['epoch'] = df.model.map(lambda x: x.split('-')[1].replace('checkpoint',''))
-    df['training_data'] = df.model.map(lambda x: x.split('-')[0])
+    parsed = df.model.map(parse_pretrain_modelname)
+    df['training_data'] = [x[0] for x in parsed]
+    df['epoch'] = [x[1] for x in parsed]
+    df['num_steps'] = [x[2] for x in parsed]
     conversion_dicts = get_pretrain_conversion()
-    
-    df['num_steps'] = df.apply(lambda x: conversion_dicts[x['training_data']][x['epoch']], axis = 1).astype('int')
-    df['epoch'] = df['epoch'].astype('int')
+
+    # Legacy local-checkpoint names do not carry the step; look it up in the
+    # epoch-to-update maps. Hub+revision names carry the step in the branch.
+    df['num_steps'] = [
+        int(conversion_dicts[td][str(ep)]) if ep is not None else int(ns)
+        for td, ep, ns in zip(df['training_data'], df['epoch'], df['num_steps'])
+    ]
     df = df.sort_values(by=['num_steps','layer','modelname',]).reset_index(drop = True)
     baselines_df = get_baseline_df()
     
@@ -403,15 +431,19 @@ def plot_layerwise_pretrain():
     joined_df = pd.DataFrame()
     for outfile in out_files:
         df = read_alldata_outfile(outfile)
-        df['training_data'] = df['modelname'].map(lambda x: x.split('-')[0])
-        df['epoch'] = df['modelname'].map(lambda x: x.split('-')[1].replace('checkpoint',''))
+        parsed = df['modelname'].map(parse_pretrain_modelname)
+        df['training_data'] = [x[0] for x in parsed]
+        df['epoch'] = [x[1] for x in parsed]
+        df['num_steps'] = [x[2] for x in parsed]
         joined_df = pd.concat((joined_df, df))
     joined_df = joined_df.reset_index(drop = True)
 
 
     conversion_dicts = get_pretrain_conversion()
-    joined_df['num_steps'] = joined_df.apply(lambda x: conversion_dicts[x['training_data']][x['epoch']], axis = 1).astype('int')
-    joined_df['epoch'] = joined_df['epoch'].astype('int')
+    joined_df['num_steps'] = [
+        int(conversion_dicts[td][str(ep)]) if ep is not None else int(ns)
+        for td, ep, ns in zip(joined_df['training_data'], joined_df['epoch'], joined_df['num_steps'])
+    ]
     joined_df.sort_values(by=['num_steps','layer','modelname',]).reset_index()
     
     
@@ -553,11 +585,15 @@ def plot_subclass_pretrain(contrast = 'consonant'):
     baselines_df = df[df.modelname.str.contains('f0|mfcc')].reset_index(drop=True)
     df = df[~df.modelname.str.contains('f0|mfcc')].reset_index(drop=True)
 
-    df['epoch'] = df.model.map(lambda x: x.split('-')[1].replace('checkpoint',''))
-    df['training_data'] = df.model.map(lambda x: x.split('-')[0])
+    parsed = df.model.map(parse_pretrain_modelname)
+    df['training_data'] = [x[0] for x in parsed]
+    df['epoch'] = [x[1] for x in parsed]
+    df['num_steps'] = [x[2] for x in parsed]
     conversion_dicts = get_pretrain_conversion()
-    df['num_steps'] = df.apply(lambda x: conversion_dicts[x['training_data']][x['epoch']], axis = 1).astype('int')
-    df['epoch'] = df['epoch'].astype('int')
+    df['num_steps'] = [
+        int(conversion_dicts[td][str(ep)]) if ep is not None else int(ns)
+        for td, ep, ns in zip(df['training_data'], df['epoch'], df['num_steps'])
+    ]
     df = df.sort_values(by=['num_steps','layer','modelname',]).reset_index(drop = True)
     baselines_df = get_baseline_df()
 

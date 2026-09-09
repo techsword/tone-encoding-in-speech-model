@@ -14,6 +14,7 @@ from plotnine import (aes, arrow, element_blank, facet_wrap, geom_hline,
                       scale_x_continuous, theme, xlim, ylim, scale_color_discrete,
                       scale_y_continuous, scale_color_manual)
 from sklearn.metrics import ConfusionMatrixDisplay
+from tone_encoding.plot_results import parse_pretrain_modelname
 
 
 model_rename_dict = {'TencentGameMate-chinese-wav2vec2-base': 'Chinese-TGM', 
@@ -259,9 +260,11 @@ def plot_pretrain(color_mapping):
     all_results = read_results(results_path)
     drop_cols = ['cm','datasetname', 'cnn_flag', 'flatten_flag', 'seed_flag','segment_flag','training_obj','model','mode']
     df = pd.DataFrame(all_results).drop(drop_cols,axis = 1)
-    df['training_data'],_,df['epoch'], df['num_steps'] = zip(*df.modelname.map(lambda x: x.replace('wav2vec2-base-','').split('-')))
-    cols_to_int = ['epoch', 'num_steps']
-    df[cols_to_int] = df[cols_to_int].astype(int)
+    parsed = df.modelname.map(parse_pretrain_modelname)
+    df['training_data'] = [x[0] for x in parsed]
+    df['epoch'] = [x[1] for x in parsed]
+    df['num_steps'] = [x[2] for x in parsed]
+    df['num_steps'] = df['num_steps'].astype(int)
     df = df[df['num_steps']%10000 == 5000] # only using *5000 checkpoints
 
     df = df.sort_values(by=['training_data','num_steps','layer','modelname',]).reset_index(drop = True)
@@ -395,9 +398,11 @@ def plot_pretrain_subclass(color_mapping):
         all_results = read_results(results_path=results_path)
         drop_cols = ['cm','datasetname', 'cnn_flag', 'flatten_flag', 'seed_flag','segment_flag','training_obj','model','mode']
         df = pd.DataFrame(all_results).drop(drop_cols,axis = 1)
-        df['training_data'],_,df['epoch'], df['num_steps'] = zip(*df.modelname.map(lambda x: x.replace('wav2vec2-base-','').split('-')))
-        cols_to_int = ['epoch', 'num_steps']
-        df[cols_to_int] = df[cols_to_int].astype(int)
+        parsed = df.modelname.map(parse_pretrain_modelname)
+        df['training_data'] = [x[0] for x in parsed]
+        df['epoch'] = [x[1] for x in parsed]
+        df['num_steps'] = [x[2] for x in parsed]
+        df['num_steps'] = df['num_steps'].astype(int)
         df = df[df['num_steps']%10000 == 5000] # only using *5000 checkpoints
 
         df = df.sort_values(by=['training_data','num_steps','layer','modelname',]).reset_index(drop = True)
@@ -495,9 +500,11 @@ def plot_last_checkpoint():
         drop_cols = ['cm','datasetname', 'cnn_flag', 'flatten_flag', 'seed_flag','segment_flag','training_obj','model','mode']
         df = pd.DataFrame(last_checkpoints).drop(drop_cols,axis = 1)
 
-        df['model'],_,df['epoch'], df['num_steps'] = zip(*df.modelname.map(lambda x: x.replace('wav2vec2-base-','').split('-')))
-        cols_to_int = ['epoch', 'num_steps']
-        df[cols_to_int] = df[cols_to_int].astype(int)
+        parsed = df.modelname.map(parse_pretrain_modelname)
+        df['model'] = [x[0] for x in parsed]
+        df['epoch'] = [x[1] for x in parsed]
+        df['num_steps'] = [x[2] for x in parsed]
+        df['num_steps'] = df['num_steps'].astype(int)
         df = df[df['num_steps']%10000 == 5000] # only using *5000 checkpoints
 
         df = df.sort_values(by=['model','num_steps','layer','modelname',]).reset_index(drop = True)
