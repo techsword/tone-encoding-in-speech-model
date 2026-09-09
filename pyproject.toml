@@ -23,14 +23,25 @@ dependencies = [
     "scikit-learn==1.3.2",
     "scipy==1.11.4",
     "seaborn==0.13.0",
-    "torch==2.1.2",
-    "torchaudio==2.1.2",
     "tqdm==4.66.1",
     "transformers==4.40.0",
     # Build-time requirements for the fairseq sdist (see no-build-isolation).
     "cython<3",
     "setuptools",
     "wheel",
+]
+
+# PyTorch is provided through the extras below. Select exactly one extra
+# matching your accelerator: `uv sync --extra cpu` or `uv sync --extra cu121`.
+# This repository was validated with the cu121 build.
+[project.optional-dependencies]
+cpu = [
+    "torch==2.1.2",
+    "torchaudio==2.1.2",
+]
+cu121 = [
+    "torch==2.1.2",
+    "torchaudio==2.1.2",
 ]
 
 # Research scripts, not a distributable package: `uv sync` creates a working
@@ -40,8 +51,32 @@ package = false
 # fairseq 0.12.2 must build against the environment's Cython<3, so build it
 # without isolation.
 no-build-isolation-package = ["fairseq"]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cu121" },
+    ],
+]
 
 [tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu121", extra = "cu121" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu121", extra = "cu121" },
+]
 # The PyPI sdist of fairseq 0.12.2 omits fairseq/clib/libbase/ and cannot
 # build from source. Use the complete GitHub tag tarball instead.
 fairseq = { url = "https://github.com/facebookresearch/fairseq/archive/refs/tags/v0.12.2.tar.gz" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
