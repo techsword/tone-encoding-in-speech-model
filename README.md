@@ -132,6 +132,21 @@ targets the validated CUDA 12.1 environment. Do not select both extras.
 No `uv.lock` is committed. Torch resolution depends on the chosen accelerator
 extra, so a committed lock would pin one backend for everyone.
 
+## Exact torch-2.1.2 baseline
+
+For comparisons that require the pre-2.5.1 numerical backend, use the immutable
+tag `repro-torch-2.1.2`:
+
+```bash
+git checkout repro-torch-2.1.2
+uv sync --extra cpu       # or --extra cu121
+```
+
+The tag preserves the pre-bump source and direct dependency pins: torch and
+torchaudio 2.1.2, transformers 4.40.0, and Python 3.10 or 3.11. The matching
+branch `repro/torch-2.1.2` exists for browsing. Use the tag as the canonical
+reproduction reference.
+
 To run a module directly, use `uv run` from the repository root:
 
 ```bash
