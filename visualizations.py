@@ -2,6 +2,7 @@ import glob
 import math
 import os
 import pickle
+# import patchworklib as pw
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -31,7 +32,7 @@ model_rename_dict = {'TencentGameMate-chinese-wav2vec2-base': 'Chinese-TGM',
                 }
 
 tonal_lang_lookup = {'Mandarin': 'Tonal',
-                    'Chinese': 'Tonal',
+                        'Chinese': 'Tonal',
                     'Cantonese': 'Tonal',
                     'Vietnamese': "Tonal",
                     'English':'Non-tonal',
@@ -128,9 +129,12 @@ def plot_probe_perf_plot(plot_df,
 
     return plot
 
-def get_baseline_df(baseline_path = '~/work_dir/speech-model-tone-probe/results/baselines_results',
+def get_baseline_df(baseline_path = None,
                     no_extra = True,
                     datasetname = None):
+    if baseline_path is None:
+        baseline_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     'results', 'baselines_results')
     baseline_path = os.path.expanduser(baseline_path)
     baselines = read_results(baseline_path)
     baselines = [x for x in baselines if ('f0' in x['modelname']) or ('mfcc' in x['modelname'])]
@@ -156,6 +160,7 @@ def plot_experiment1():
     # df.model = df.model.map(lambda x: model_rename_dict[x])
     df = df[~df.model.isna()]
     df = df[(~df.model.str.contains('\d+K')) & (~df.model.str.contains('MFCC|F0'))]
+    # df = df[df.group.isna()]
     df =  df[df['mode'] == 'heldout']
 
     
@@ -175,6 +180,7 @@ def plot_experiment1():
         baselines_df = get_baseline_df(datasetname=datasetname)
         baselines_df =  baselines_df[baselines_df['mode'] == 'heldout']
 
+
         #Plotting tonal vs non-tonal languages
         selector = 'tone'
         plot_df = df[(df.isin({selector}).any(axis=1)) & 
@@ -192,6 +198,7 @@ def plot_experiment1():
         plot = plot_probe_perf_plot(plot_df, selector, 
                             facet=facet,
                             show_baseline=True,
+                            #    linetype = 'training_obj',
                             color_mapping=color_mapping)
         plot += geom_hline(baselines_df[baselines_df.isin({selector}).any(axis=1)], aes(yintercept='acc_score', color='model'))
         plot += theme(figure_size=(5, 3.6))
@@ -214,6 +221,7 @@ def plot_experiment1():
         plot_df['model'] = pd.Categorical(plot_df['model'], categories=model_order, ordered=True)
         baselines_df['model'] = pd.Categorical(baselines_df['model'], categories=model_order, ordered=True)
         
+        # plot_df = plot_df.sort_values(by='training_obj')
         plot = plot_probe_perf_plot(plot_df, selector, 
                             show_baseline=True,
                             facet = facet,
@@ -289,6 +297,43 @@ def plot_pretrain(color_mapping):
     print(pretrainplot)
     pretrainplot.save('./results/pretraining_consonant_vs_tone.png')
 
+def plot_confusion_matrices():
+    all_results = read_results(results_path='results/heldout_experiment')
+    fig_save_path = 'results/confusion_matrices/'
+    if not os.path.isdir(fig_save_path):
+        os.mkdir(fig_save_path)
+
+    df = pd.DataFrame(all_results)
+    df['cm_array'], df['cm_labels'] = zip(*df['cm'].map(lambda x: (x['array'], x['labels'])))
+    # df['model'] = df['model'].map(lambda x: model_rename_dict[x])
+    df = df.loc[df.training_obj == 'pre-trained'].reset_index(drop=True)
+    df = df.iloc[(df.groupby(['modelname', 'contrast', 'segment_flag'])['acc_score'].idxmax())].copy().reset_index(drop=True)
+    for contrast in ['consonant', 'tone']:
+        segment_flag = 'segment-output'
+        datasetname = 'thchs30'
+        plot_df = df[(df.datasetname == datasetname) &
+                  (df.segment_flag == segment_flag) &
+                  (df.contrast == contrast) ].copy().sort_values(by = ['model']).reset_index(drop=True)
+        
+                  
+        n_panels = len(plot_df)
+        row, column = 2, int(math.ceil(n_panels/2))
+        fig, axs = plt.subplots(row, column, figsize=(5 * column, 4.5 * row))
+        for i in range(n_panels):
+            column_i, row_i   = int(i/row), int(i/column)
+            row_i = i%2
+            entry = plot_df.iloc[i]
+            cm_normalized = entry['cm_array'] / entry['cm_array'].sum(axis=1)[:, np.newaxis]
+            df_cm = pd.DataFrame(np.around(cm_normalized, decimals=2), index=entry['cm_labels'],
+                                columns=entry['cm_labels'])
+            cbar = True if column_i == (column - 1) else False
+            sns.heatmap(df_cm, annot=True, ax=axs[row_i, column_i], vmin=0, vmax=1, cbar=cbar)
+            axs[row_i, column_i].set_title(entry['model'])
+        fig.suptitle(f'Confusion Matrix for {contrast}-{segment_flag}')
+        plt.tight_layout()
+        plt.show()
+        fig.savefig(os.path.join(fig_save_path,f"heatmap-{contrast}-{segment_flag}.png"), dpi=300)
+
 def plot_subclass(color_mapping):
     for contrast in ['tone', 'consonant']:
         results_path = f'./results/heldout_experiment_{contrast}_subclass'
@@ -307,6 +352,8 @@ def plot_subclass(color_mapping):
                         
                         (df.datasetname.str.contains('thchs')) & 
                         (~df.training_obj.str.contains('fine-tuned'))].copy()
+            # group_order =
+            # plot_df.groupby('group')['acc_score'].std().sort_values(ascending=False).index
             grouped_data = plot_df.groupby(['model','group'])['acc_score'].max()
             group_order = (grouped_data['Mandarin'] - grouped_data['English']).sort_values(ascending=False).index
             plot_df['group'] = pd.Categorical(plot_df['group'], categories=group_order, ordered=True)
@@ -335,6 +382,7 @@ def plot_subclass(color_mapping):
                         legend_box_spacing=0.01,
                         legend_text=p9.element_text(size=8),
                         )
+                # + ggtitle(f'{contrast.capitalize()} subclass experiment {selector}')
                 + scale_color_manual(values=color_mapping)
                 )
             print(plot)
@@ -368,6 +416,7 @@ def plot_pretrain_subclass(color_mapping):
         group_order = (grouped_data['Mandarin'] - grouped_data['English']).sort_values(ascending=False).index
         model_order = ['F0', 'MFCC', 'English', 'Mandarin'] 
         plot_df['training_data'] = pd.Categorical(plot_df['training_data'], categories=model_order, ordered=True)
+        # group_order = plot_df.groupby('group')['acc_score'].std().sort_values(ascending=False).index
         plot_df['group'] = pd.Categorical(plot_df['group'], categories=group_order, ordered=True)
         baselines_df['group'] = pd.Categorical(baselines_df['group'], categories=group_order, ordered=True)
         x_size = 5*len(group_order)/3+0.5
@@ -392,10 +441,51 @@ def plot_pretrain_subclass(color_mapping):
                     legend_text=p9.element_text(size=8),
                     figure_size=(x_size, 3.5),
                     )
+            # + ggtitle(f'{contrast.capitalize()} subclass experiment {selector}')
             + scale_color_manual(values=color_mapping)
             )
         print(plot)
         plot.save(f'results/probing_results_pretraining_{contrast}_subclass.png')
+
+
+def plot_alldata():
+    for contrast in ['tone', 'consonant']:
+        datasetname = 'thchs'
+        results_path = f'./results/alldata_experiment'
+        alldata_results = read_results(results_path=results_path)
+        alldata_df = pd.DataFrame(alldata_results).drop(['cm','cnn_flag'],axis = 1)
+        alldata_models = alldata_df.model.unique()
+        heldout_results = read_results(results_path=results_path.replace('alldata','heldout'))
+        heldout_df = pd.DataFrame(heldout_results).drop(['cm','cnn_flag'],axis = 1)
+        heldout_df = heldout_df[heldout_df.model.isin(alldata_models)]
+
+        df = pd.concat((alldata_df,heldout_df)).copy().reset_index()
+        df = df[(df['contrast'] == contrast) &
+                (df['datasetname'].str.contains(datasetname)) &
+                (df.training_obj == 'pre-trained')]
+
+        df.model = df.model.map(lambda x: model_rename_dict[x])
+        df = df[~(df.model.str.contains('\d+K'))]
+        baselines_df = get_baseline_df()
+        baselines_df = baselines_df[(baselines_df['contrast'] == contrast) &
+                                    (baselines_df['datasetname'].str.contains(datasetname))]
+
+        plot_df = df.copy()
+        facet = ['segment_flag', 'mode']
+        # plot_df["training_obj"] = pd.Categorical(plot_df['training_obj'])
+        # plot_df['training_obj'] = plot_df['training_obj'].cat.reorder_categories(['pre-trained','fine-tuned'])
+        # plot_df = plot_df.sort_values(by='training_obj')
+        plot = plot_probe_perf_plot(plot_df, datasetname, 
+                            show_baseline=True,
+                            facet = facet)
+        
+        plot += geom_hline(baselines_df, aes(yintercept='acc_score', color='model'))
+        plot += ggtitle(f"""
+{contrast.capitalize()} classification accuracy with {datasetname.upper()} 
+Contextual information comparison 
+""")
+        print(plot)
+        break
 
 def plot_last_checkpoint():
     for contrast in ['consonant','tone']:
@@ -464,14 +554,64 @@ def plot_last_checkpoint():
         print(plot)
         plot.save(f'results/{contrast}_subclass_checkpoint85000.png')
 
+def plot_tone_contour():
+
+    import parselmouth
+    import glob
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import pandas as pd
+
+    # sns.set() # Use seaborn's default style to make attractive graphs
+    plt.rcParams['figure.dpi'] = 300 # Show nicely large images in this notebook
+    plt.figure(figsize=(5, 4))
+    tones_audio_files = glob.glob('tone_recording/*.wav')
+    tones_audio_files.sort()
+    def draw_pitch(pitch):
+            # Extract selected pitch contour, and
+            # replace unvoiced samples by NaN to not plot
+            pitch_values = pitch.selected_array['frequency']
+            pitch_values[pitch_values==0] = np.nan
+            plt.plot(pitch.xs(), pitch_values, 'o', markersize=5, color='w')
+            plt.plot(pitch.xs(), pitch_values, 'o', markersize=2)
+            plt.grid(False)
+            plt.ylim(0, pitch.ceiling)
+            plt.ylabel("fundamental frequency [Hz]")
+
+    tone_dict = []
+    for i, tone_file in enumerate(tones_audio_files):
+        snd = parselmouth.Sound(tone_file)
+        pitch = snd.to_pitch()
+        pitch_values = pitch.selected_array['frequency']
+        pitch_values[pitch_values==0] = np.nan
+        time = pitch.xs()
+        tone_label = os.path.basename(tone_file).split('.')[0].capitalize().replace('one','')
+        plot = sns.lineplot(x=time, y = pitch_values, label = tone_label)
+        plot.set(ylim=(50,200))
+
+        tone_dict.append({'tone_label':tone_label,
+        'time':time,'pitch_values': pitch_values})
+
+    plt.xlabel('Time - Seconds')
+    plt.ylabel('F0 values - Hertz')
+    plt.show()
+
+    plot.get_figure().savefig('results/tone_illustration.png')
+
+
+    df = pd.DataFrame(tone_dict)
+    return df
 
 
 def main():
+    # tone_recording_df =plot_tone_contour()
     color_mapping = plot_experiment1()
     plot_subclass(color_mapping)
     plot_pretrain(color_mapping)
     plot_pretrain_subclass(color_mapping)
-    plot_last_checkpoint()
+    plot_confusion_matrices()
+    pass
 
 if __name__ == "__main__":
     main()

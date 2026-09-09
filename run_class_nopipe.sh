@@ -8,4 +8,6 @@ source /usr/local/anaconda3/etc/profile.d/conda.sh
 
 conda activate tones
 
-srun python experiment_classification.py
+ARG1=${1:-"facebook/wav2vec2-base"}
+
+srun python classification.py

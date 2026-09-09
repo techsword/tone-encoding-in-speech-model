@@ -12,7 +12,8 @@ import pandas as pd
 import textgrids
 import torch
 import torchaudio
-from generate_aligned_dataset import save_aligned_dataset_csv
+from generate_aligned_dataset import (CORPORA_ROOT, THCHS30_DIR, VIVOS_DIR,
+                                      YORUBA_DIR, save_aligned_dataset_csv)
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchaudio.models.wav2vec2.utils import import_fairseq_model
 from tqdm.auto import tqdm
@@ -31,7 +32,7 @@ def get_segmented_output(emb, segment_df, audio_len):
     
     segment_df['startFrame'] = (segment_df['startTime']/audio_len*total_frames).map(math.ceil)
     segment_df['endFrame'] = (segment_df['endTime']/audio_len*total_frames).map(math.ceil)
-    segment_df = segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]
+    segment_df = segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]
     segment_dict = segment_df.iloc[:,3:].to_dict()
 
     segments = torch.zeros(shape[0],len(segment_df), shape[-1])
@@ -48,7 +49,7 @@ def get_segmented_input(wave, segment_df, audio_len):
 
     segment_df.loc[:,'startFrame'] = (segment_df['startTime']/audio_len*total_frames).map(math.ceil)
     segment_df.loc[:,'endFrame'] = (segment_df['endTime']/audio_len*total_frames).map(math.ceil)
-    segment_df = segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]
+    segment_df = segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]
     segment_dict = segment_df.iloc[:,3:].to_dict()
 
     def parse_transcription(x):
@@ -173,7 +174,7 @@ def generating_features(file_IDs, model, dataset_path, df,
                     else:
                         features = get_audio_hidden_states(wave.squeeze(1))
                     features_batch = [get_segmented_output(features[:,x,:,:], segment_df, audio_len).numpy() for x in range(features.shape[1])]
-                    assert len(segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]) == features_batch[0].shape[1]
+                    assert len(segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]) == features_batch[0].shape[1]
                 # features = torch.stack([get_segmented_output(x, segment_df, audio_len) for x in features]).numpy()
             feat_list.extend(features_batch)
             audioname_list.append(file_ID)
@@ -182,7 +183,7 @@ def generating_features(file_IDs, model, dataset_path, df,
 
 class classifierInputDataset(Dataset):
 
-    def __init__(self, features, datasetname = 'thchs30'):
+    def __init__(self, features, datasetname = 'thchs30', tiername = None):
         """_summary_
 
         Args:
@@ -190,7 +191,7 @@ class classifierInputDataset(Dataset):
             datasetname (str, optional): 'thchs30' or 'vivos'. Defaults to 'thchs30'.
         """
         self.file_IDs, self.embs = zip(*features)
-        self.transformed_dataset = save_aligned_dataset_csv(datasetname).to_numpy()
+        self.transformed_dataset = save_aligned_dataset_csv(datasetname, tiername = tiername).to_numpy()
         consonants = ['r', 'sh', 'ch','s','z','j','zh','q','c','x']
         consonants_pattern = '|'.join(consonants)
         vowels = 'aeiou'
@@ -227,18 +228,24 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
                save_path = 'classifier_input', 
                flattened = False, 
                cnn = False, 
-               segment_input = False):
+               segment_input = False,
+               tiername = None):
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
+        extension = 'wav'
 
     elif 'vivos' in datasetname:
         datasetname = 'vivos-train'
-        dataset_path = "~/vivos/train/waves"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
+        extension = 'wav'
+
+    elif 'yor' in datasetname:
+        datasetname = 'yoruba'
+        dataset_path = os.path.join(YORUBA_DIR, 'data')
+        extension = 'flac'
 
     df = save_aligned_dataset_csv(dataset = datasetname,
-                                rewrite=False)
+                                rewrite=False, tiername = tiername)
 
 
     if not os.path.isdir(save_path):
@@ -248,7 +255,7 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
     flatten_flag = 'flat' if flattened else ''
     cnn_flag = 'cnn' if cnn else ''
     segment_input_flag = 'segment-input' if segment_input else ''
-    save_name = "_".join(filter(None, (modelname, datasetname, flatten_flag, 'extracted-data', cnn_flag, segment_input_flag))) + '.pt'
+    save_name = "_".join(filter(None, (modelname, datasetname, flatten_flag, 'extracted-data', cnn_flag, segment_input_flag, tiername))) + '.pt'
     save_name = os.path.join(save_path, save_name)
 
     if os.path.isfile(save_name):
@@ -270,8 +277,8 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
                     tokenizer = None                
             except:
                 KeyError(f"{model_ID} is not part of the Huggingface Hub")
-        features = generating_features(file_IDs, model, dataset_path=dataset_path, df=df, flattened=flattened, cnn=cnn, tokenizer=tokenizer, segment_input=segment_input)
-        dataset = classifierInputDataset(features, datasetname = datasetname)
+        features = generating_features(file_IDs, model, dataset_path=dataset_path, df=df, flattened=flattened, cnn=cnn, tokenizer=tokenizer, segment_input=segment_input, extension=extension)
+        dataset = classifierInputDataset(features, datasetname = datasetname, tiername = tiername)
         metadata_dict = {'model_ID': model_ID, 
                          'datasetname': datasetname}
         dataset_with_metadata = list(map(lambda x: metadata_dict|x, dataset))
@@ -308,6 +315,12 @@ def parse_args():
         "--segment_input",
         action = 'store_true',
         help="If use timestamp to slice audio before feeding audio as input to speech models.",
+    )    
+    parser.add_argument(
+        "--tiername",
+        # action = 'store_true',
+        default=None,
+        help="If change tiername to e.g. 'phones' for yoruba.",
     )
     args = parser.parse_args()
 
@@ -321,7 +334,8 @@ def main():
                               datasetname=args.dataset_name,
                               flattened=args.flattened, 
                               cnn = args.cnn, 
-                              segment_input = args.segment_input)
+                              segment_input = args.segment_input,
+                              tiername = args.tiername)
 
 if __name__ == "__main__":
     main()

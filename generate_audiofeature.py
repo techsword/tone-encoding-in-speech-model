@@ -13,7 +13,8 @@ import pandas as pd
 import parselmouth
 import torch
 from torch.utils.data import Dataset
-from generate_aligned_dataset import save_aligned_dataset_csv
+from generate_aligned_dataset import (THCHS30_DIR, VIVOS_DIR,
+                                      save_aligned_dataset_csv)
 from scipy.signal import resample
 from tqdm.auto import tqdm
 
@@ -23,8 +24,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 # Load audio file
-dataset_path = "~/data_thchs30/data/"
-dataset_path = os.path.expanduser(dataset_path)
+dataset_path = os.path.join(THCHS30_DIR, 'data')
 file_ID = "A2_54.wav"
 audio_file_path = os.path.join(dataset_path,file_ID)
 
@@ -36,7 +36,7 @@ def pad_along_axis(array: np.ndarray, target_length: int, axis: int = 0) -> np.n
     npad[axis] = (0, pad_size)
     return np.pad(array, pad_width=npad, mode='constant', constant_values=0)
 
-def extract_audio_features(audio_file_path:str | os.PathLike):
+def extract_audio_features(audio_file_path:str or os.PathLike):
     pitch_floor=60
     pitch_ceiling=650
     wintime = 0.025
@@ -50,6 +50,7 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
     y,sr = librosa.load(audio_file_path, sr= None)
     hop_len = int(sr*hoptime)
     win_len = int(sr*wintime)
+    # y_f0, voiced_flag, voiced_probs = librosa.pyin(y,fmin=pitch_floor,fmax=pitch_ceiling, sr = sr,hop_length=hop_len, )
     y_mfccs = librosa.feature.mfcc(y=y, 
                                    sr=sr, 
                                    n_mfcc=numcep, 
@@ -66,6 +67,7 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
     # Extract f0 contour with parselmouth/praat
     pitch = snd.to_pitch(time_step = hoptime, pitch_floor=pitch_floor, pitch_ceiling=pitch_ceiling)
     praat_f0 = pitch.selected_array['frequency']
+    # praat_mfcc = snd.to_mfcc(number_of_coefficients=numcep, window_length=wintime, time_step = hoptime, maximum_frequency=maxfreq)
     praat_time = pitch.xs()
 
     return {os.path.basename(audio_file_path):{'praat_f0':praat_f0, 
@@ -78,11 +80,9 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
 def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True):
 
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
     elif 'vivos' in datasetname:
-        dataset_path = "~/vivos/train/waves/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
         datasetname = 'vivos-train'
 
     if not os.path.isdir(save_path):
@@ -200,6 +200,7 @@ class audiofeatureDataset(Dataset):
         file_ID = self.file_IDs[idx]
         seg_emb = np.array([x[self.model_ID] for x in self.embs[idx]])
         trns = self.transformed_dataset[self.transformed_dataset[:,0] == file_ID]
+        # assert len(seg_emb) == len(trns)
         trn_chars = trns[:,3].astype(str)
         split_phonetic = trns[:,4].astype(str)
         phonetic_wo_tone = np.array([x[:-1] for x in split_phonetic])

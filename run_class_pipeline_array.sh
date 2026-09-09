@@ -26,6 +26,11 @@ model_names=(
 	"wcfr/wav2vec2-conformer-rel-pos-base-cantonese"
     )
 
+further_experiment=(
+	"facebook/wav2vec2-base"
+	"bert-base-chinese"
+	"kehanlu/mandarin-wav2vec2"
+    )
 
 # Get the index from SLURM_ARRAY_TASK_ID
 index=$SLURM_ARRAY_TASK_ID
@@ -45,5 +50,14 @@ srun python classification_pipeline.py --model_name $current_name --mode 'heldou
 # Running the basic experiment on Vietnamese data 'vivos'
 srun python classification_pipeline.py --model_name $current_name --dataset 'vivos' --mode 'heldout' --contrast 'tone'
 
+# Check if the current name is in the further_experiment array
+if [[ " ${further_experiment[@]} " =~ " ${current_name} " ]]; then
+	echo "Running --segment_input experiment for ${current_name}"
+
+	srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'tone' --segment_input
+	srun python classification_pipeline.py --model_name $current_name --mode 'alldata' --contrast 'tone' --segment_input
+	srun python classification_pipeline.py --model_name $current_name --mode 'alldata' --contrast 'tone'
+	# srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'consonant' --segment_input
+fi
 
 echo "FINISHED!"

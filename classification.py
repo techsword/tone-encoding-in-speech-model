@@ -15,7 +15,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
-from typing import Union
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -31,7 +30,7 @@ def custom_train_test_split(X, y, mask_array, seed):
         if len(mask_array) == 1:
             X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = seed)
         else:
-            raise ValueError(f"mask array len: {len(mask_array)} != X len {len(X)}\n if this is not the correct behavior please check configurations")
+            raise ValueError(f"using all data instead of heldout because mask array len: {len(mask_array)} != X len {len(X)}\n if this is not the correct behavior please check configurations")
     else:
         X_train = X[np.invert(mask_array)]
         X_test = X[mask_array]  
@@ -80,7 +79,7 @@ def classification_pipeline(X: np.ndarray,
                                                                    y, 
                                                                    mask_array = mask_array, 
                                                                    seed = seed)
-        print(f"train:{len(y_train)}, test: {len(y_test)}   ")
+        print(f"{len(y_train), len(y_test)}")
         clf =  make_pipeline(StandardScaler(with_mean=False), 
                          RidgeClassifierCV(alphas = [10 ** n for n in range(-4,2)], cv = 5))
         tqdm.write(f'running ridge classifier on layer {layer}')
@@ -105,8 +104,7 @@ def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.c
                          filter_consonant = False):
     df = pd.read_csv(dataset_insight_path, index_col=0)
     df = df.dropna()
-    # df = df[~df['transcription'].str.contains('sil|SIL')]
-    df = df[~df['transcription'].str.contains('[SIL]')]
+    df = df[~df['transcription'].str.contains('sil|SIL')]
     phonetic_column_name = 'phonetic_transcriptions' if 'transformed_dataset' in dataset_insight_path else 'pinyin'
     df['phonetic_wo_tone'] = df[phonetic_column_name].map(lambda x: x[:-1])
     df['tone_label'] = df[phonetic_column_name].map(lambda x: x[-1])
@@ -170,15 +168,13 @@ def get_subclass_consonant_groups():
                                phoneme_lang_lookup[i]: i})
     return groups, data_heading
 
-def process_emb_filename(emb_file: Union[str, os.PathLike],
+def process_emb_filename(emb_file: str or os.PathLike,
                      mode = 'alldata',
                      seed = '42',
                      contrast = 'tone',
-                     results_path = 'results',
-                     subclass = None):
+                     results_path = 'results'):
     modelname = os.path.basename(emb_file).split('_')[0] if 'checkpoint' not in emb_file else '-'.join(os.path.basename(emb_file).split('_')[:-2])
     datasetname = 'thchs30' if 'thchs30' in emb_file else 'vivos'
-    datasetname = 'yoruba' if 'yor' in emb_file else datasetname
     flatten_flag = 'flat' if 'flat' in emb_file else 'original'
     cnn_flag = 'cnn' if 'cnn' in emb_file else ''
     seed_flag = f'seed-{seed}' if seed != 42 else ''
@@ -229,66 +225,13 @@ def load_input_and_labels_and_mask(all_inputs_arr, all_labels_arr, rs,
 
     return X, y, mask
 
-def process_raw_input_dataset(raw_input_dataset, rs, 
-                              contrast = 'tone', 
-                              mode = 'heldout',
-                              group = None, 
-                              ):
-
-    contrast_dict = {'tone': {'column_filter':'phonetic_wo_tone',
-                            'filter_consonant': False,
-                            'label': 'tone_labels'},
-                    'consonant':{'column_filter':'ending',
-                            'filter_consonant': True,
-                            'label': 'onset'},
-                    'yoruba':{'column_filter':'chars',
-                            'filter_consonant': False,
-                            'label': 'tone_labels'},}
-    inputs, labels, column_filter = zip(*[(x['embs'], 
-                        x[contrast_dict[contrast]['label']], 
-                        x[contrast_dict[contrast]['column_filter']]) 
-                            for x in tqdm(raw_input_dataset, desc='loading raw dataset')])
-    
-    inputs = np.concatenate(inputs, axis = 0)
-    labels = np.concatenate(labels, axis = 0)
-    column_filter = np.concatenate(column_filter, axis = 0)
-
-
-
-    if contrast == 'consonant':
-        consonants = ['r', 'sh', 'ch','s','z','j','zh','q','c','x']
-        consonant_filter_indices = np.isin(labels, consonants)
-        inputs, labels, column_filter = inputs[consonant_filter_indices], labels[consonant_filter_indices], column_filter[consonant_filter_indices]
-
-    if mode == 'alldata':
-        mask = np.zeros(1)
-    elif mode == 'heldout':
-        if group:
-            group = [int(x) if str(x).isdigit() else x for x in group ]
-            group_filter = np.isin(labels, group)
-            inputs, labels, column_filter = inputs[group_filter], labels[group_filter], column_filter[group_filter]
-        # the following block randomly samples 20% of all unique values in column_filter
-        # and constructs mask to make train test split
-        unique_entries, counts = np.unique(column_filter, return_counts=True)
-        test_percent = 0.2
-        num_test = round(test_percent * len(unique_entries))
-        test_entries = rs.choice(unique_entries, size = num_test)
-        mask = np.isin(column_filter, test_entries)
-
-    while len(inputs.shape) < 3:
-        # Accounting for the shapes of audio features (f0, mfccs)
-        inputs = np.expand_dims(inputs, axis = 1)
-    return inputs, labels, mask
-
-
-def run_classification(emb_file = './classifier_input/facebook-wav2vec2-base_thchs30_extracted-data.pt', 
-                       mode = 'heldout', 
-                       tgt_layers = None,
-                       seed = 42,
-                       contrast = 'tone',
-                       results_path = 'results/heldout_experiment',
-                       rewrite = False,
-                       subclass = False
+def run_classification(emb_file, 
+                       mode, 
+                       tgt_layers,
+                       seed,
+                       contrast,
+                       results_path,
+                       rewrite = False
                        ):
     if not os.path.isdir(results_path): 
         os.mkdir(results_path)
@@ -299,43 +242,31 @@ def run_classification(emb_file = './classifier_input/facebook-wav2vec2-base_thc
         tqdm.write(f'{abs_save_path} results already exist!') 
         return
     elif not os.path.isfile(emb_file):
-        raise FileNotFoundError(f"{emb_file} not found")
+        return
     else:
         tqdm.write(f'running classification, saving results to {abs_save_path}!')
-        raw_input_dataset = torch.load(emb_file)
-        X, y, mask_array = process_raw_input_dataset(raw_input_dataset, rs, 
-                                                    contrast = contrast, 
-                                                    mode = mode,)
+        _, _, all_inputs_arr, all_labels_arr = torch.load(emb_file)
+        if 'thchs30' in emb_file:
+            dataset_insight_path = './thchs30_transformed_dataset.csv'
+        elif 'vivos' in emb_file:
+            dataset_insight_path = './vivos-train_transformed_dataset.csv'
+        X, y, mask_array = load_input_and_labels_and_mask(all_inputs_arr, all_labels_arr,rs, 
+                                                          contrast = contrast, 
+                                                          mode = mode, 
+                                                          dataset_insight_path=dataset_insight_path)
         results = classification_pipeline(X, y, seed=seed, mask_array=mask_array, tgt_layers=tgt_layers)
         with open(abs_save_path, 'wb') as file:
             pickle.dump(results, file)
+        # torch.save(results, abs_save_path)
         tqdm.write(f'finished classification on {emb_file} and saved results to {abs_save_path}!')
 
-def get_subclass_groups(contrast):
-    from itertools import combinations
-    if contrast == 'tone':
-        groups = list(combinations(['1', '2', '3', '4'], r =2))
-    elif contrast == 'consonant':
-        raw_groups, data_heading = get_subclass_consonant_groups()
-        groups = []
-        consonant_classes = []
-        for group in raw_groups:
-            phoneme, language = group.keys()
-            if language == 'english':
-                continue
-            orthography = group[phoneme][:,0]
-            classes = group[phoneme][:,list(data_heading.values()).index(language)]
-            groups.append(tuple(orthography))
-            consonant_classes.append(classes)
-    return groups
-    
 
-def run_subclass(emb_file = './classifier_input/facebook-wav2vec2-base_thchs30_extracted-data.pt',
-                mode = 'heldout',
-                seed = 42,
-                tgt_layers=None, 
-                contrast = "tone",
-                results_path = 'results/heldout_experiment_tone_subclass'):
+def run_subclass(emb_file = './data/facebook-wav2vec2-base_thchs30_extracted-data.pt',
+                        mode = 'heldout',
+                        seed = 42,
+                        tgt_layers=None, 
+                        contrast = "tone",
+                        results_path = 'results/subclass_experiment'):
 
     abs_save_path = process_emb_filename(emb_file, mode = mode,seed = seed, contrast=contrast, results_path=results_path)
     if not os.path.isdir(results_path): 
@@ -347,64 +278,48 @@ def run_subclass(emb_file = './classifier_input/facebook-wav2vec2-base_thchs30_e
         return
     else:
         tqdm.write(f'running classification, saving results to {abs_save_path}!')
+        _, _, all_inputs_arr, all_labels_arr = torch.load(emb_file)
         rs = RandomState(MT19937(SeedSequence(seed)))
-        raw_input_dataset = torch.load(emb_file)
+
         experiment_results = []
-        groups = get_subclass_groups(contrast)
+        from itertools import combinations
+        if contrast == 'tone':
+            groups = list(combinations(['1', '2', '3', '4'], r =2))
+        elif contrast == 'consonant':
+            raw_groups, data_heading = get_subclass_consonant_groups()
+            groups = []
+            consonant_classes = []
+            for group in raw_groups:
+                phoneme, language = group.keys()
+                if language == 'english':
+                    continue
+                orthography = group[phoneme][:,0]
+                classes = group[phoneme][:,list(data_heading.values()).index(language)]
+                groups.append(tuple(orthography))
+                consonant_classes.append(classes)
+
         for group in tqdm(groups,desc='Groupings'):
             tqdm.write(f"doing {contrast} subclass classification on {'-'.join(group)}")
-            X, y, mask_array = process_raw_input_dataset(raw_input_dataset, rs, 
-                                            contrast = contrast, 
-                                            mode = mode,group = group)
+            X, y, mask = load_input_and_labels_and_mask(all_inputs_arr, 
+                                                        all_labels_arr, 
+                                                        rs, 
+                                                        contrast = contrast, 
+                                                        mode = 'heldout', group = group)
 
             assert len(X) == len(y)
 
-            results = classification_pipeline(X, y, seed=seed, mask_array=mask_array, tgt_layers=tgt_layers)
+            results = classification_pipeline(X, y, seed=seed, mask_array=mask, tgt_layers=tgt_layers)
             experiment_results.extend([x|{'group': '-'.join(group)} for x in results])
+
         with open(abs_save_path, 'wb') as file:
             pickle.dump(experiment_results, file)
         tqdm.write(f'finished classification on {emb_file} and saved results to {abs_save_path}!')
-
-
-def get_classifier_input_stats():
-    for dataset in ['thchs30', 'vivos-train']:
-        emb_file = f'classifier_input/facebook-wav2vec2-base_{dataset}_extracted-data.pt'
-        seed = 42
-        mode = 'heldout'
-        rs = RandomState(MT19937(SeedSequence(seed)))
-        raw_input_dataset = torch.load(emb_file)
-        for contrast in ['tone', 'consonant']:
-            groups = get_subclass_groups(contrast) if 'thchs30' in emb_file else []
-            groups.append(None)
-            for group in groups:
-                layer = 0
-                # raw_input_dataset = torch.load(emb_file)
-                X, y, mask_array = process_raw_input_dataset(raw_input_dataset, rs, 
-                                            contrast = contrast, 
-                                            mode = mode,group = group)
-                X_ = np.nan_to_num(X[:,layer,:])
-                X_train, X_test, y_train, y_test = custom_train_test_split(X_, 
-                                                                            y, 
-                                                                            mask_array = mask_array, 
-                                                                            seed = seed)
-                lookup = {'train':y_train,
-                        'test':y_test}
-                for split in lookup.keys():
-                    labels, counts = np.unique(lookup[split], return_counts=True)
-                    total_count = len(lookup[split])
-                    counts_normalized = counts/total_count*100
-                    counts_percent = np.around(counts_normalized, decimals=2, out=None)
-                    print(f"""
-the {split} split for {contrast} classification in {emb_file} has the following stats:
-Total number of samples: {total_count}
-Class distribution: {dict(zip(labels,counts_percent))}
-""")
 
 def main():
     seed = 42
     mode = 'heldout'
     tgt_layers = None
-    data_path = 'classifier_input/'
+    data_path = 'data/'
     results_path = f'results/{mode}_experiment'
     
     all_emb_files = [x for x in glob.glob(data_path + "*.pt") if 'extracted-data' in x                  
@@ -433,57 +348,20 @@ def main():
     baseline_results_path = 'results/baselines_results'
     for emb_file in tqdm(baselines_files, desc='Baseline files'):
         for contrast in ['consonant', 'tone']:
-            if ('vivos' in emb_file) and (contrast == 'consonant'):
-                continue
-            # for baseline_mode in ['alldata', 'heldout']:
-            baseline_mode = 'heldout'
-            run_classification(emb_file, baseline_mode, tgt_layers,seed,
-                contrast=contrast, results_path = baseline_results_path, rewrite = True)
+            run_classification(emb_file, mode, tgt_layers,seed,
+            contrast=contrast, results_path = baseline_results_path, rewrite = False)
             
-    contrasts = ['tone', 'consonant']
-    for contrast in contrasts:
-        subclass_results_path = f'./results/heldout_experiment_{contrast}_subclass'
-        for emb_file in tqdm(emb_files+baselines_files, desc='Embedding files'):
-            if 'vivos' in emb_file:
-                continue
-            run_subclass(emb_file=emb_file, mode = mode, seed = seed, tgt_layers=tgt_layers, contrast = contrast, results_path=subclass_results_path)
+    
 
 
-'''
-VIVOS tone split:
-train:124248, test: 29629
-'''
+    # contrasts = ['tone'] #, 'consonant']
+    # for contrast in contrasts:
+    #     subclass_results_path = f'./results/heldout_experiment_{contrast}_subclass'
+    #     for emb_file in tqdm(emb_files, desc='Embedding files'):
+    #         run_subclass(emb_file=emb_file, mode = mode, seed = seed, tgt_layers=tgt_layers, contrast = contrast, results_path=subclass_results_path)
 
 
-def train_test_stats():
-    stats_files = [ 'classifier_input/f0_thchs30_extracted-data.pt',
-                   'classifier_input/f0_vivos-train_extracted-data.pt']
-    seed = 42
-    mode = 'heldout'
-    tgt_layers = None
-    for emb_file in stats_files:
-        for contrast in ['tone', 'consonant']:
-            if ('vivos' in emb_file) and ('consonant' in contrast):
-                continue
-            rs = RandomState(MT19937(SeedSequence(seed)))
-            raw_input_dataset = torch.load(emb_file)
-            experiment_results = []
-            if 'thchs' in emb_file:
-                groups = get_subclass_groups(contrast)
-                groups.append(None)
-            else:
-                groups = [None]
-            for group in groups:
-                # tqdm.write(f"doing {contrast} subclass classification on {'-'.join(group)}")
-                X, y, mask_array = process_raw_input_dataset(raw_input_dataset, rs, 
-                                                contrast = contrast, 
-                                                mode = mode,group = group)
 
-                assert len(X) == len(y)
-
-                results = classification_pipeline(X, y, seed=seed, mask_array=mask_array, tgt_layers=tgt_layers)
-                group = 'none' if not group else group
-                print(f"group:{group}, emb_file: {emb_file}")
 
 
 if __name__ == "__main__":

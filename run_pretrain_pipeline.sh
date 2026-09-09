@@ -9,6 +9,20 @@ source /usr/local/anaconda3/etc/profile.d/conda.sh
 
 conda activate tones
 
+# The raw fairseq checkpoints are NOT in this repo (fairseq-pretrained-models/
+# is gitignored). Download them from Hugging Face into fairseq-pretrained-models/
+# before running, keeping the original subdirectory layout:
+#   wav2vec2_base_librispeech/checkpoint_<epoch>_<step>.pt
+#   wav2vec2_base_magicdata/checkpoint_<epoch>_<step>.pt
+# Raw checkpoints:
+#   https://huggingface.co/techsword/wav2vec2-base-english-librispeech730h-checkpoints
+#   https://huggingface.co/techsword/wav2vec2-base-mandarin-magicdata-checkpoints
+# Converted HF-format models (for direct use with the transformers library):
+#   https://huggingface.co/techsword/wav2vec2-base-english-librispeech730h
+#   https://huggingface.co/techsword/wav2vec2-base-mandarin-magicdata
+# The checkpoint paths below are passed as --model_name; the loader treats
+# them as local files (see generate_classifier_input.load_fairseq_model).
+
 # find fairseq-pretrained-models/*/*5000.pt | sort -V
 
 model_names=(

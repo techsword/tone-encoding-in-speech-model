@@ -21,9 +21,18 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=logging.INFO)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
+# ---- Corpus locations -----------------------------------------------------
+# Point THCHS30/VIVOS at your local copies. Defaults are repo-relative; set
+# the environment variables to your own layout (see README "Data
+# requirements" for the paths used in the paper).
+_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+CORPORA_ROOT = os.environ.get('CORPORA_ROOT', os.path.join(_REPO_ROOT, 'corpora'))
+THCHS30_DIR = os.environ.get('THCHS30_DIR', os.path.join(CORPORA_ROOT, 'data_thchs30'))
+VIVOS_DIR = os.environ.get('VIVOS_DIR', os.path.join(CORPORA_ROOT, 'vivos'))
+
+
 # Load audio file
-dataset_path = "~/data_thchs30/data/"
-dataset_path = os.path.expanduser(dataset_path)
+dataset_path = os.path.join(THCHS30_DIR, 'data')
 file_ID = "A2_54.wav"
 audio_file_path = os.path.join(dataset_path,file_ID)
 
@@ -43,6 +52,7 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
     y,sr = librosa.load(audio_file_path, sr= None)
     hop_len = int(sr*hoptime)
     win_len = int(sr*wintime)
+    # y_f0, voiced_flag, voiced_probs = librosa.pyin(y,fmin=pitch_floor,fmax=pitch_ceiling, sr = sr,hop_length=hop_len, )
     y_mfccs = librosa.feature.mfcc(y=y, 
                                    sr=sr, 
                                    n_mfcc=numcep, 
@@ -59,6 +69,7 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
     # Extract f0 contour with parselmouth/praat
     pitch = snd.to_pitch(time_step = hoptime, pitch_floor=pitch_floor, pitch_ceiling=pitch_ceiling)
     praat_f0 = pitch.selected_array['frequency']
+    # praat_mfcc = snd.to_mfcc(number_of_coefficients=numcep, window_length=wintime, time_step = hoptime, maximum_frequency=maxfreq)
     praat_time = pitch.xs()
 
     return {os.path.basename(audio_file_path):{'praat_f0':praat_f0, 
@@ -71,11 +82,9 @@ def extract_audio_features(audio_file_path:str | os.PathLike):
 def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True):
 
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
     elif 'vivos' in datasetname:
-        dataset_path = "~/vivos/train/waves"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
         datasetname = 'vivos-train'
 
     if not os.path.isdir(save_path):
@@ -117,11 +126,9 @@ def process_extracted_audio_features(audio_features_file = './audio_features/thc
     context_frame_sec = num_context_ms * time_step
     extension = '.wav'
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = THCHS30_DIR
     elif 'vivos' in datasetname:
-        dataset_path = "~/vivos/train/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train')
         datasetname = 'vivos-train'
     glob_list = [x for x in glob.glob(dataset_path + '/**/*' + extension, recursive = True) if 'flat' not in x]
     tg_list = [x for x in glob.glob(dataset_path + '/**/*' + '.TextGrid', recursive = True)]
@@ -245,12 +252,10 @@ def generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features
         parallel (bool, optional): _description_. Defaults to True.
     """
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
 
     elif 'vivos' in datasetname:
-        dataset_path = "~/vivos/train/waves"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
         datasetname = 'vivos-train'
 
     if not os.path.isdir(save_path):
@@ -295,8 +300,7 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
         aggregate_method (str, optional): _description_. Defaults to 'avgpool'.
     """
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
         file = [x for x in glob.glob(save_path+'*.pt') if datasetname in x and audio_feature in x and 'processed' not in x]
         assert len(file) == 1
         raw_dataset = torch.load(file[0])
@@ -306,8 +310,7 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
 
 
     elif 'vivos' in datasetname:
-        dataset_path = "~/vivos/train/waves"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
         datasetname = 'vivos-train'
 
 
@@ -319,7 +322,7 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
         if len(segment_numpified_df) == 0:
             continue
         segment_numpified_df = segment_numpified_df[np.where(segment_numpified_df[:,3] != '[SIL]')]
-        trn_file = os.path.join(os.path.expanduser(dataset_path), file_ID + ".trn")
+        trn_file = os.path.join(dataset_path, file_ID + ".trn")
         with open(trn_file, 'r') as f:
             trns = f.read().splitlines()
         pinyin_transcriptions = trns[1].split()
@@ -355,7 +358,7 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
     assert len(all_labels_array) == len(all_inputs_array)
 
     torch.save({'inputs': all_inputs_array, 'labels': all_labels_array},
-               f'/home/gshen/work_dir/speech-model-tone-probe/audio_features/{datasetname}_{audio_feature}_processed.pt')
+               os.path.join(save_path, f'{datasetname}_{audio_feature}_processed.pt'))
 
 
 
@@ -368,6 +371,11 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
     torch.save((audio_feature, datasetname, all_inputs_array, all_labels_array), data_savename)
 
 def main():
+    # generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True)
+    # process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_feature = 'f0', flattened = False, parallel = True,aggregate_method = 'avgpool')
+    # process_data(datasetname = 'thchs30', save_path = 'audio_features/',
+    # audio_feature = 'mfcc', flattened = False, parallel =
+    # True,aggregate_method = 'avgpool')
     audio_features_file = run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True)
     process_extracted_audio_features(audio_features_file = audio_features_file,
                                      datasetname = 'thchs30',
