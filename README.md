@@ -81,29 +81,36 @@ export THCHS30_DIR=/path/to/data_thchs30
 export VIVOS_DIR=/path/to/vivos
 ```
 
-## Pretrained fairseq checkpoints
+## Pretrained checkpoints (Hugging Face safetensors)
 
-The raw fairseq checkpoints used for the pretrained-checkpoint experiments are
-not stored in this repo. Download them from Hugging Face into
-`fairseq-pretrained-models/`, keeping the original subdirectory layout:
+The pretrained-checkpoint experiments load their models from the Hugging Face
+Hub as safetensors. Each training checkpoint is a branch (revision) of a repo:
 
-- Raw checkpoints:
-  - `techsword/wav2vec2-base-english-librispeech730h-checkpoints`
-  - `techsword/wav2vec2-base-mandarin-magicdata-checkpoints`
-- Converted HF-format models (for direct use with the transformers library):
-  - `techsword/wav2vec2-base-english-librispeech730h`
-  - `techsword/wav2vec2-base-mandarin-magicdata`
+- `techsword/wav2vec2-base-english-librispeech730h`
+- `techsword/wav2vec2-base-mandarin-magicdata`
 
-The checkpoint path is passed to the loader (e.g. `--model_name` in
-`scripts/run_pretrain_pipeline.sh`); it is treated as a local fairseq file when
-the path exists on disk and contains "fairseq"
-(see `tone_encoding.generate_classifier_input.load_fairseq_model`).
+Branches are named `ckpt-<step>`: `ckpt-5000`, `ckpt-15000`, ..., `ckpt-85000`
+(the odd 5000-step checkpoints). The `main` branch holds the best checkpoint.
+
+Pass the repo as `--model_name` and the branch as `--revision`:
+
+```bash
+python -m tone_encoding.generate_classifier_input \
+  --model_name techsword/wav2vec2-base-english-librispeech730h \
+  --revision ckpt-5000 --dataset_name thchs30
+```
+
+`scripts/run_pretrain_pipeline.sh` uses this convention for all 18 checkpoints.
+The loader (`tone_encoding.generate_classifier_input.loading_pretrained_model`)
+imports the model as a torchaudio `Wav2Vec2Model`, so the 12-layer
+`extract_features` path is unchanged. No manual download is needed; the Hub
+fetches the branch on first use.
 
 ## Environment setup
 
 `uv` manages the environment. Most dependencies are pinned in
-`pyproject.toml`. Python 3.10 is required: fairseq 0.12.2 does not import on
-Python 3.11 or later.
+`pyproject.toml`. Python 3.10 or 3.11 is supported; Python 3.12 is blocked
+because torch 2.1.2 has no cp312 wheels. fairseq is no longer a dependency.
 
 PyTorch is provided through two mutually exclusive extras. Select exactly one:
 
@@ -115,8 +122,8 @@ uv sync --extra cpu
 uv sync --extra cu121
 ```
 
-`uv sync` creates `.venv/` and installs the pinned dependency set, including
-fairseq 0.12.2. It also installs the `tone_encoding` package from `src/` in
+`uv sync` creates `.venv/` and installs the pinned dependency set. It also
+installs the `tone_encoding` package from `src/` in
 editable mode, so both `python -m tone_encoding.X` and
 `from tone_encoding import X` work with no `sys.path` changes. The `cu121` extra
 matches the validated 2024 environment. Do not select both extras.
@@ -154,8 +161,10 @@ python -m tone_encoding.classification_pipeline --model_name facebook/wav2vec2-b
 ```
 
 `tone_encoding.classification_pipeline` accepts `--mode {heldout,alldata}` and
-`--contrast {tone,consonant}`, plus optional `--subclass`, `--segment_input`,
-`--flattened`, `--cnn`, `--tgt_layers`, and `--seed` flags.
+`--contrast {tone,consonant}`, plus optional `--revision`, `--subclass`,
+`--segment_input`, `--flattened`, `--cnn`, `--tgt_layers`, and `--seed` flags.
+`--revision` selects a Hugging Face branch for the pretrained-checkpoint
+experiments (see "Pretrained checkpoints" above).
 
 ## Legacy scripts
 
