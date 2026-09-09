@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.python-version
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Generated data and results (regenerable)
+results/
+corpora/
+data/
+embeddings/
+classifier_input/
+audio_features/
+fairseq-pretrained-models/
+slurm_logs/
+
+# Model / serialization artifacts
+*.pt
+*.pkl
+*.pt.*
+*.bin
+
+# Generated aligned datasets (CSV)
+*.csv
+thchs-aligned/
+*.TextGrid
+
+# OS / editor
+.DS_Store
