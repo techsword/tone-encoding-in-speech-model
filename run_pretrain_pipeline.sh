@@ -5,9 +5,7 @@
 #SBATCH --array=0-17%4
 
 
-source "$(conda info --base)/etc/profile.d/conda.sh"
-
-conda activate tones
+source .venv/bin/activate
 
 # The raw fairseq checkpoints are NOT in this repo (fairseq-pretrained-models/
 # is gitignored). Download them from Hugging Face into fairseq-pretrained-models/

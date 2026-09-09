@@ -4,9 +4,7 @@
 #SBATCH --job-name="class"
 
 
-source "$(conda info --base)/etc/profile.d/conda.sh"
-
-conda activate tones
+source .venv/bin/activate
 
 ARG1=${1:-"facebook/wav2vec2-base"}
 

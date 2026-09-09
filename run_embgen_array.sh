@@ -6,9 +6,7 @@
 #SBATCH --array=0-8%2
 
 
-source "$(conda info --base)/etc/profile.d/conda.sh"
-
-conda activate tones
+source .venv/bin/activate
 
     # "kehanlu/mandarin-wav2vec2" 
     # "kehanlu/mandarin-wav2vec2-aishell1"

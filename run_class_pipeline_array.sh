@@ -6,9 +6,7 @@
 #SBATCH --array=0-12%2
 
 
-source "$(conda info --base)/etc/profile.d/conda.sh"
-
-conda activate tones
+source .venv/bin/activate
 
 model_names=(
 	"facebook/wav2vec2-base"
