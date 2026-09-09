@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+src/*.egg-info/
 .python-version
 
 # Virtual environments
@@ -12,7 +13,9 @@ env/
 # Generated data and results (regenerable)
 results/
 corpora/
-data/
+data/*
+# The epoch-to-updates mapping tables are shipped with the repo.
+!data/epoch_maps/
 embeddings/
 classifier_input/
 audio_features/

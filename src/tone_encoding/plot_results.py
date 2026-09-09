@@ -274,7 +274,7 @@ def find_pretrain_color_palette():
 
     return color_mapping
 
-def get_pretrain_conversion(file_pattern = '*epoch-to-updates.txt'):
+def get_pretrain_conversion(file_pattern = 'data/epoch_maps/*-epoch-to-updates.txt'):
     epoch_to_update_conversion_files = glob.glob(file_pattern)
     conversion_dicts = {}
     for conv_txt in epoch_to_update_conversion_files:
@@ -282,7 +282,7 @@ def get_pretrain_conversion(file_pattern = '*epoch-to-updates.txt'):
             content = f.read().splitlines()
         content_unzipped = list(zip(*[x.split()[-5:] for x in content]))
         epoch_to_update_conversion = dict(zip(content_unzipped[1], content_unzipped[3]))
-        conversion_dicts[conv_txt.split('-')[0]] = epoch_to_update_conversion
+        conversion_dicts[os.path.basename(conv_txt).split('-')[0]] = epoch_to_update_conversion
     
     english_dict = {**conversion_dicts['ls960h'], **conversion_dicts['librispeech']}
     mandarin_dict = {**conversion_dicts['mandarin'], **conversion_dicts['magicdata']}
