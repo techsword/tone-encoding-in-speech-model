@@ -60,7 +60,6 @@ experiments require Charsiu-produced TextGrid files. You need:
 - **THCHS-30** (Mandarin) — audio, `.wav.trn` transcriptions, and TextGrid
   alignments.
 - **VIVOS** (Vietnamese) — audio, `prompts_ipa.txt`, and TextGrid alignments.
-- **CommonVoice zh** (used for some checks).
 - **LibriSpeech** (English, for cross-lingual checks).
 - **MAGICDATA** (Mandarin, for the pretrained-checkpoint experiments).
 
@@ -88,8 +87,9 @@ not stored in this repo. Download them from Hugging Face into
   - `techsword/wav2vec2-base-mandarin-magicdata`
 
 The checkpoint path is passed to the loader (e.g. `--model_name` in
-`run_pretrain_pipeline.sh`); it is treated as a local file when the path
-contains "fairseq" (see `generate_classifier_input.load_fairseq_model`).
+`run_pretrain_pipeline.sh`); it is treated as a local fairseq file when the
+path exists on disk and contains "fairseq"
+(see `generate_classifier_input.load_fairseq_model`).
 
 ## Environment setup
 

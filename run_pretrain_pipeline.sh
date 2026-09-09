@@ -5,7 +5,7 @@
 #SBATCH --array=0-17%4
 
 
-source /usr/local/anaconda3/etc/profile.d/conda.sh
+source "$(conda info --base)/etc/profile.d/conda.sh"
 
 conda activate tones
 
