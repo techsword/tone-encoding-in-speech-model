@@ -93,16 +93,24 @@ path exists on disk and contains "fairseq"
 
 ## Environment setup
 
-The SLURM scripts assume a conda environment named `tones`:
+`uv` manages the environment. Dependencies are pinned in `pyproject.toml` and
+`uv.lock`. Python 3.10 is required: fairseq 0.12.2 does not import on Python
+3.11 or later.
 
 ```bash
-conda create -n tones python=3.10
-conda activate tones
-pip install -r requirements.txt
+uv sync
 ```
 
-`requirements.txt` pins the validated 2024-era dependency set (Python 3.10 or
-3.11).
+`uv sync` creates `.venv/` and installs the pinned dependency set, including
+fairseq 0.12.2. The default wheels are CUDA-enabled, matching the original
+2024 environment. To run a script directly, use `uv run`:
+
+```bash
+uv run python generate_classifier_input.py --model_name facebook/wav2vec2-base --dataset_name thchs30
+```
+
+The SLURM scripts activate the environment with `source .venv/bin/activate`.
+Submit them from the repository root.
 
 ## Usage
 
