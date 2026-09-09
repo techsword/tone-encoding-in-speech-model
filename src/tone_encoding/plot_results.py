@@ -449,7 +449,7 @@ def plot_layerwise_pretrain():
 
 def get_maj_error(seed = 42, contrast = 'tone'):
     from numpy.random import MT19937, RandomState, SeedSequence
-    from classification import read_dataset_insight
+    from tone_encoding.classification import read_dataset_insight
 
     rs = RandomState(MT19937(SeedSequence(seed)))
     filter_consonant = True if contrast == 'consonant' else False

@@ -13,8 +13,8 @@ import pandas as pd
 import parselmouth
 import torch
 from torch.utils.data import Dataset
-from generate_aligned_dataset import (THCHS30_DIR, VIVOS_DIR,
-                                      save_aligned_dataset_csv)
+from tone_encoding.generate_aligned_dataset import (THCHS30_DIR, VIVOS_DIR,
+                                                    save_aligned_dataset_csv)
 from scipy.signal import resample
 from tqdm.auto import tqdm
 

@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import parselmouth
 import torch
-from preprocessing import thchs_save_dataset
+from tone_encoding.preprocessing import thchs_save_dataset
 from scipy.signal import resample
 from tqdm.auto import tqdm
 

@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import textgrids
 import torch
-from preprocessing import (check_dimension, read_textgrids,
-                           save_textgrids_to_csvs)
+from tone_encoding.preprocessing import (check_dimension, read_textgrids,
+                                         save_textgrids_to_csvs)
 # from ..embgen import save_textgrids_to_csvs
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm

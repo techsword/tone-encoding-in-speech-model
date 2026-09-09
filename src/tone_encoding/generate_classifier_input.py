@@ -12,8 +12,8 @@ import pandas as pd
 import textgrids
 import torch
 import torchaudio
-from generate_aligned_dataset import (CORPORA_ROOT, THCHS30_DIR, VIVOS_DIR,
-                                      YORUBA_DIR, save_aligned_dataset_csv)
+from tone_encoding.generate_aligned_dataset import (CORPORA_ROOT, THCHS30_DIR, VIVOS_DIR,
+                                                    YORUBA_DIR, save_aligned_dataset_csv)
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchaudio.models.wav2vec2.utils import import_fairseq_model
 from tqdm.auto import tqdm

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "tone-encoding-in-speech-model"
 version = "0.1.0"
@@ -44,10 +48,16 @@ cu121 = [
     "torchaudio==2.1.2",
 ]
 
-# Research scripts, not a distributable package: `uv sync` creates a working
-# environment without building/installing this repo.
+# Install the src-layout package editable into the environment, so both
+# `python -m tone_encoding.X` and `from tone_encoding import X` work after
+# `uv sync`.
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.uv]
-package = false
 # fairseq 0.12.2 must build against the environment's Cython<3, so build it
 # without isolation.
 no-build-isolation-package = ["fairseq"]

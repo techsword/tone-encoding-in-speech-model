@@ -23,8 +23,8 @@ from tqdm.auto import tqdm
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-from classification import (custom_train_test_split,
-                            load_input_and_labels_and_mask)
+from tone_encoding.classification import (custom_train_test_split,
+                                          load_input_and_labels_and_mask)
 
 
 class MLP(nn.Module):

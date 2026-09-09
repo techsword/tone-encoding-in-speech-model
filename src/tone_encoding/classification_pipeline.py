@@ -10,11 +10,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-# from embgen import run_embgen
-# from classification import run_classification, run_subclass
+# from tone_encoding.generate_classifier_input import run_embgen
+# from tone_encoding.classification import run_classification, run_subclass
 
-from generate_classifier_input import run_embgen
-from experiment_classification import run_classification, run_subclass
+from tone_encoding.generate_classifier_input import run_embgen
+from tone_encoding.experiment_classification import run_classification, run_subclass
 
 
 def parse_args():
