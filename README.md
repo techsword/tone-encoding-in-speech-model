@@ -93,17 +93,28 @@ path exists on disk and contains "fairseq"
 
 ## Environment setup
 
-`uv` manages the environment. Dependencies are pinned in `pyproject.toml` and
-`uv.lock`. Python 3.10 is required: fairseq 0.12.2 does not import on Python
-3.11 or later.
+`uv` manages the environment. Most dependencies are pinned in
+`pyproject.toml`. Python 3.10 is required: fairseq 0.12.2 does not import on
+Python 3.11 or later.
+
+PyTorch is provided through two mutually exclusive extras. Select exactly one:
 
 ```bash
-uv sync
+# CPU only (local development)
+uv sync --extra cpu
+
+# NVIDIA GPU with CUDA 12.1 (HPC)
+uv sync --extra cu121
 ```
 
 `uv sync` creates `.venv/` and installs the pinned dependency set, including
-fairseq 0.12.2. The default wheels are CUDA-enabled, matching the original
-2024 environment. To run a script directly, use `uv run`:
+fairseq 0.12.2. The `cu121` extra matches the validated 2024 environment. Do
+not select both extras.
+
+No `uv.lock` is committed. Torch resolution depends on the chosen accelerator
+extra, so a committed lock would pin one backend for everyone.
+
+To run a script directly, use `uv run`:
 
 ```bash
 uv run python generate_classifier_input.py --model_name facebook/wav2vec2-base --dataset_name thchs30
