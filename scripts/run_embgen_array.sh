@@ -41,5 +41,5 @@ model_names=(
 
 
 
-srun python generate_classifier_input.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name thchs30
-srun python generate_classifier_input.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name vivos
+srun python -m tone_encoding.generate_classifier_input --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name thchs30
+srun python -m tone_encoding.generate_classifier_input --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name vivos

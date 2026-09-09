@@ -44,12 +44,12 @@ fairseq-pretrained-models/wav2vec2_base_magicdata/checkpoint_237_75000.pt
 fairseq-pretrained-models/wav2vec2_base_magicdata/checkpoint_269_85000.pt
     )
 
-srun python generate_classifier_input.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name thchs30
+srun python -m tone_encoding.generate_classifier_input --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --dataset_name thchs30
 
-srun python classification_pipeline.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'tone' --results_path "results/pretrained_pipeline_results"
-srun python classification_pipeline.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'consonant' --results_path "results/pretrained_pipeline_results"
+srun python -m tone_encoding.classification_pipeline --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'tone' --results_path "results/pretrained_pipeline_results"
+srun python -m tone_encoding.classification_pipeline --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'consonant' --results_path "results/pretrained_pipeline_results"
 
 
-srun python classification_pipeline.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'tone' --results_path "results/pretrained_pipeline_results" --subclass
-srun python classification_pipeline.py --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'consonant' --results_path "results/pretrained_pipeline_results" --subclass
+srun python -m tone_encoding.classification_pipeline --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'tone' --results_path "results/pretrained_pipeline_results" --subclass
+srun python -m tone_encoding.classification_pipeline --model_name ${model_names[$SLURM_ARRAY_TASK_ID]} --mode 'heldout' --contrast 'consonant' --results_path "results/pretrained_pipeline_results" --subclass
 

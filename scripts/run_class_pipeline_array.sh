@@ -39,23 +39,23 @@ current_name=${model_names[$index]}
 echo "Running basic experiment for ${current_name}"
 
 # Running the basic experiment
-srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'tone'
-srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'consonant'
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'tone'
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'consonant'
 # Running the subclass experiment
-srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'tone' --subclass
-srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'consonant' --subclass
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'tone' --subclass
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'consonant' --subclass
 
 # Running the basic experiment on Vietnamese data 'vivos'
-srun python classification_pipeline.py --model_name $current_name --dataset 'vivos' --mode 'heldout' --contrast 'tone'
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --dataset 'vivos' --mode 'heldout' --contrast 'tone'
 
 # Check if the current name is in the further_experiment array
 if [[ " ${further_experiment[@]} " =~ " ${current_name} " ]]; then
 	echo "Running --segment_input experiment for ${current_name}"
 
-	srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'tone' --segment_input
-	srun python classification_pipeline.py --model_name $current_name --mode 'alldata' --contrast 'tone' --segment_input
-	srun python classification_pipeline.py --model_name $current_name --mode 'alldata' --contrast 'tone'
-	# srun python classification_pipeline.py --model_name $current_name --mode 'heldout' --contrast 'consonant' --segment_input
+	srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'tone' --segment_input
+	srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'alldata' --contrast 'tone' --segment_input
+	srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'alldata' --contrast 'tone'
+	# srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'consonant' --segment_input
 fi
 
 echo "FINISHED!"

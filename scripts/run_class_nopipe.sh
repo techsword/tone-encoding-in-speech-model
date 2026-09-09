@@ -8,4 +8,4 @@ source .venv/bin/activate
 
 ARG1=${1:-"facebook/wav2vec2-base"}
 
-srun python classification.py
+srun python -m tone_encoding.classification
