@@ -109,8 +109,9 @@ fetches the branch on first use.
 ## Environment setup
 
 `uv` manages the environment. Most dependencies are pinned in
-`pyproject.toml`. Python 3.10 or 3.11 is supported; Python 3.12 is blocked
-because torch 2.1.2 has no cp312 wheels. fairseq is no longer a dependency.
+`pyproject.toml`. The stack is torch 2.5.1, torchaudio 2.5.1, and transformers
+4.46.3. Python 3.10, 3.11, and 3.12 are supported; torch 2.5.1 ships cp312
+wheels. fairseq is no longer a dependency.
 
 PyTorch is provided through two mutually exclusive extras. Select exactly one:
 
@@ -126,7 +127,7 @@ uv sync --extra cu121
 installs the `tone_encoding` package from `src/` in
 editable mode, so both `python -m tone_encoding.X` and
 `from tone_encoding import X` work with no `sys.path` changes. The `cu121` extra
-matches the validated 2024 environment. Do not select both extras.
+targets the validated CUDA 12.1 environment. Do not select both extras.
 
 No `uv.lock` is committed. Torch resolution depends on the chosen accelerator
 extra, so a committed lock would pin one backend for everyone.
