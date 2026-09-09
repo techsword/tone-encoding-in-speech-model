@@ -26,6 +26,12 @@ def parse_args():
         help="The name of the model to use (via the transformers library).",
     )
     parser.add_argument(
+        "--revision",
+        type=str,
+        default=None,
+        help="Hub branch/revision of the model, e.g. 'ckpt-5000'.",
+    )
+    parser.add_argument(
         "--dataset_name",
         type=str,
         default='thchs30',
@@ -90,6 +96,7 @@ def parse_args():
 def main():
     args = parse_args()
     emb_filename = run_embgen(model_ID = args.model_name,
+                              revision = args.revision,
                               datasetname=args.dataset_name,
                               flattened=args.flattened, 
                               cnn = args.cnn, 

@@ -6,7 +6,6 @@ import math
 import os
 import re
 
-import fairseq
 import numpy as np
 import pandas as pd
 import textgrids
@@ -15,16 +14,27 @@ import torchaudio
 from tone_encoding.generate_aligned_dataset import (CORPORA_ROOT, THCHS30_DIR, VIVOS_DIR,
                                                     YORUBA_DIR, save_aligned_dataset_csv)
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchaudio.models.wav2vec2.utils import import_fairseq_model
+from torchaudio.models.wav2vec2.utils import import_huggingface_model
 from tqdm.auto import tqdm
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def load_fairseq_model(checkpoint):
-    model, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task([checkpoint])
-    original = model[0]
-    imported = import_fairseq_model(original)
-    return imported
+def loading_pretrained_model(model_id_or_path, revision=None):
+    """Load a wav2vec2 checkpoint as a torchaudio Wav2Vec2Model.
+
+    ``model_id_or_path`` is a Hugging Face hub repo id or a local directory.
+    ``revision`` selects a hub branch, for example ``ckpt-5000``. The
+    checkpoint must be a wav2vec2 model; other architectures are rejected.
+    """
+    from transformers import AutoConfig, Wav2Vec2Model
+    config = AutoConfig.from_pretrained(model_id_or_path, revision=revision)
+    if config.model_type != 'wav2vec2':
+        raise ValueError(
+            f"{model_id_or_path!r} has model_type={config.model_type!r}; "
+            "only wav2vec2 pretrained checkpoints are supported"
+        )
+    hf_model = Wav2Vec2Model.from_pretrained(model_id_or_path, revision=revision)
+    return import_huggingface_model(hf_model)
 
 def get_segmented_output(emb, segment_df, audio_len):
     shape = emb.shape
@@ -224,6 +234,7 @@ class classifierInputDataset(Dataset):
                 'file_ID': file_ID}
     
 def run_embgen(model_ID = 'facebook/wav2vec2-base', 
+               revision = None,
                datasetname = 'thchs30', 
                save_path = 'classifier_input', 
                flattened = False, 
@@ -251,7 +262,13 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
     if not os.path.isdir(save_path):
         os.mkdir(save_path)
 
-    modelname = '-'.join(model_ID.split('/')[-2:]).replace('.pt','')
+    # Hub checkpoints carry the branch/revision in the output name so that each
+    # trajectory checkpoint (for example ckpt-5000) gets a distinct file. The
+    # plot parsers recover the step from this name.
+    if revision is not None:
+        modelname = f"{model_ID.split('/')[-1]}-{revision}"
+    else:
+        modelname = '-'.join(model_ID.split('/')[-2:]).replace('.pt','')
     flatten_flag = 'flat' if flattened else ''
     cnn_flag = 'cnn' if cnn else ''
     segment_input_flag = 'segment-input' if segment_input else ''
@@ -263,8 +280,8 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
     else:
         print(f"generating classifier data input to {save_name}")
         file_IDs = df.file_ID.unique()
-        if os.path.isfile(model_ID) and 'fairseq' in model_ID:
-            model = load_fairseq_model(model_ID)
+        if revision is not None:
+            model = loading_pretrained_model(model_ID, revision=revision)
             tokenizer = None
         else:
             from transformers import AutoModel
@@ -280,6 +297,7 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
         features = generating_features(file_IDs, model, dataset_path=dataset_path, df=df, flattened=flattened, cnn=cnn, tokenizer=tokenizer, segment_input=segment_input, extension=extension)
         dataset = classifierInputDataset(features, datasetname = datasetname, tiername = tiername)
         metadata_dict = {'model_ID': model_ID, 
+                         'revision': revision,
                          'datasetname': datasetname}
         dataset_with_metadata = list(map(lambda x: metadata_dict|x, dataset))
         torch.save(dataset_with_metadata, save_name, pickle_protocol = 4)
@@ -294,6 +312,13 @@ def parse_args():
         type=str,
         default='facebook/wav2vec2-base',
         help="The name of the model to use (via the transformers library).",
+    )
+    parser.add_argument(
+        "--revision",
+        type=str,
+        default=None,
+        help=("Hub branch/revision of the model, e.g. 'ckpt-5000'. When set, "
+              "the model loads as a wav2vec2 checkpoint via loading_pretrained_model."),
     )
     parser.add_argument(
         "--dataset_name",
@@ -331,6 +356,7 @@ def parse_args():
 def main():
     args = parse_args()
     run_embgen(model_ID = args.model_name,
+                              revision = args.revision,
                               datasetname=args.dataset_name,
                               flattened=args.flattened, 
                               cnn = args.cnn, 
