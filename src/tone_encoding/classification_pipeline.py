@@ -10,11 +10,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import torch
-# from embgen import run_embgen
-# from classification import run_classification, run_subclass
+# from tone_encoding.generate_classifier_input import run_embgen
+# from tone_encoding.classification import run_classification, run_subclass
 
-from generate_classifier_input import run_embgen
-from experiment_classification import run_classification, run_subclass
+from tone_encoding.generate_classifier_input import run_embgen
+from tone_encoding.experiment_classification import run_classification, run_subclass
 
 
 def parse_args():
@@ -24,6 +24,12 @@ def parse_args():
         type=str,
         default='facebook/wav2vec2-base',
         help="The name of the model to use (via the transformers library).",
+    )
+    parser.add_argument(
+        "--revision",
+        type=str,
+        default=None,
+        help="Hub branch/revision of the model, e.g. 'ckpt-5000'.",
     )
     parser.add_argument(
         "--dataset_name",
@@ -90,6 +96,7 @@ def parse_args():
 def main():
     args = parse_args()
     emb_filename = run_embgen(model_ID = args.model_name,
+                              revision = args.revision,
                               datasetname=args.dataset_name,
                               flattened=args.flattened, 
                               cnn = args.cnn, 

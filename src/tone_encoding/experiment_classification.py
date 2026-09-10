@@ -8,11 +8,14 @@ import pandas as pd
 import torch
 from numpy.random import MT19937, RandomState, SeedSequence
 from sklearn.linear_model import RidgeClassifierCV
-from sklearn.metrics import (confusion_matrix, f1_score)
+from sklearn.metrics import (ConfusionMatrixDisplay, accuracy_score,
+                             confusion_matrix, f1_score, mean_squared_error,
+                             r2_score)
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from tqdm.auto import tqdm
+from typing import Union
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -60,7 +63,7 @@ def classification_pipeline(X: np.ndarray,
         seed (int, optional): _description_. Defaults to 42.
 
     Returns:
-        list: All results in a list of dictionaries
+        _type_: _description_
     """
 
     all_results = []
@@ -102,7 +105,8 @@ def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.c
                          filter_consonant = False):
     df = pd.read_csv(dataset_insight_path, index_col=0)
     df = df.dropna()
-    df = df[~df['transcription'].str.contains('sil|SIL')]
+    # df = df[~df['transcription'].str.contains('sil|SIL')]
+    df = df[~df['transcription'].str.contains('[SIL]')]
     phonetic_column_name = 'phonetic_transcriptions' if 'transformed_dataset' in dataset_insight_path else 'pinyin'
     df['phonetic_wo_tone'] = df[phonetic_column_name].map(lambda x: x[:-1])
     df['tone_label'] = df[phonetic_column_name].map(lambda x: x[-1])
@@ -166,7 +170,7 @@ def get_subclass_consonant_groups():
                                phoneme_lang_lookup[i]: i})
     return groups, data_heading
 
-def process_emb_filename(emb_file: str | os.PathLike,
+def process_emb_filename(emb_file: Union[str, os.PathLike],
                      mode = 'alldata',
                      seed = '42',
                      contrast = 'tone',
@@ -174,6 +178,7 @@ def process_emb_filename(emb_file: str | os.PathLike,
                      subclass = None):
     modelname = os.path.basename(emb_file).split('_')[0] if 'checkpoint' not in emb_file else '-'.join(os.path.basename(emb_file).split('_')[:-2])
     datasetname = 'thchs30' if 'thchs30' in emb_file else 'vivos'
+    datasetname = 'yoruba' if 'yor' in emb_file else datasetname
     flatten_flag = 'flat' if 'flat' in emb_file else 'original'
     cnn_flag = 'cnn' if 'cnn' in emb_file else ''
     seed_flag = f'seed-{seed}' if seed != 42 else ''
@@ -210,6 +215,7 @@ def load_input_and_labels_and_mask(all_inputs_arr, all_labels_arr, rs,
             df = raw_df.copy()
         filtered_indices = df['filtered_index'].to_numpy()
         filtered_labels = df[contrast_dict[contrast]['label']].to_numpy().astype(str) if contrast == 'consonant' else all_labels_arr[filtered_indices]
+        # filtered_labels = np.array([int(x) if x.isdigit() else 0 for x in filtered_labels]) if contrast == 'tone' else filtered_labels
         X, y = all_inputs_arr[filtered_indices], filtered_labels
 
         all_entries = df[contrast_dict[contrast]['column_filter']].to_numpy().astype(str)
@@ -234,7 +240,10 @@ def process_raw_input_dataset(raw_input_dataset, rs,
                             'label': 'tone_labels'},
                     'consonant':{'column_filter':'ending',
                             'filter_consonant': True,
-                            'label': 'onset'},}
+                            'label': 'onset'},
+                    'yoruba':{'column_filter':'chars',
+                            'filter_consonant': False,
+                            'label': 'tone_labels'},}
     inputs, labels, column_filter = zip(*[(x['embs'], 
                         x[contrast_dict[contrast]['label']], 
                         x[contrast_dict[contrast]['column_filter']]) 
@@ -438,6 +447,12 @@ def main():
             if 'vivos' in emb_file:
                 continue
             run_subclass(emb_file=emb_file, mode = mode, seed = seed, tgt_layers=tgt_layers, contrast = contrast, results_path=subclass_results_path)
+
+
+'''
+VIVOS tone split:
+train:124248, test: 29629
+'''
 
 
 def train_test_stats():

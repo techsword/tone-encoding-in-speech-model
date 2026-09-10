@@ -6,24 +6,35 @@ import math
 import os
 import re
 
-import fairseq
 import numpy as np
 import pandas as pd
 import textgrids
 import torch
 import torchaudio
-from generate_aligned_dataset import save_aligned_dataset_csv
+from tone_encoding.generate_aligned_dataset import (CORPORA_ROOT, THCHS30_DIR, VIVOS_DIR,
+                                                    YORUBA_DIR, save_aligned_dataset_csv)
 from torch.utils.data import DataLoader, Dataset, Subset
-from torchaudio.models.wav2vec2.utils import import_fairseq_model
+from torchaudio.models.wav2vec2.utils import import_huggingface_model
 from tqdm.auto import tqdm
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def load_fairseq_model(checkpoint):
-    model, _, _ = fairseq.checkpoint_utils.load_model_ensemble_and_task([checkpoint])
-    original = model[0]
-    imported = import_fairseq_model(original)
-    return imported
+def loading_pretrained_model(model_id_or_path, revision=None):
+    """Load a wav2vec2 checkpoint as a torchaudio Wav2Vec2Model.
+
+    ``model_id_or_path`` is a Hugging Face hub repo id or a local directory.
+    ``revision`` selects a hub branch, for example ``ckpt-5000``. The
+    checkpoint must be a wav2vec2 model; other architectures are rejected.
+    """
+    from transformers import AutoConfig, Wav2Vec2Model
+    config = AutoConfig.from_pretrained(model_id_or_path, revision=revision)
+    if config.model_type != 'wav2vec2':
+        raise ValueError(
+            f"{model_id_or_path!r} has model_type={config.model_type!r}; "
+            "only wav2vec2 pretrained checkpoints are supported"
+        )
+    hf_model = Wav2Vec2Model.from_pretrained(model_id_or_path, revision=revision)
+    return import_huggingface_model(hf_model)
 
 def get_segmented_output(emb, segment_df, audio_len):
     shape = emb.shape
@@ -31,7 +42,7 @@ def get_segmented_output(emb, segment_df, audio_len):
     
     segment_df['startFrame'] = (segment_df['startTime']/audio_len*total_frames).map(math.ceil)
     segment_df['endFrame'] = (segment_df['endTime']/audio_len*total_frames).map(math.ceil)
-    segment_df = segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]
+    segment_df = segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]
     segment_dict = segment_df.iloc[:,3:].to_dict()
 
     segments = torch.zeros(shape[0],len(segment_df), shape[-1])
@@ -48,7 +59,7 @@ def get_segmented_input(wave, segment_df, audio_len):
 
     segment_df.loc[:,'startFrame'] = (segment_df['startTime']/audio_len*total_frames).map(math.ceil)
     segment_df.loc[:,'endFrame'] = (segment_df['endTime']/audio_len*total_frames).map(math.ceil)
-    segment_df = segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]
+    segment_df = segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]
     segment_dict = segment_df.iloc[:,3:].to_dict()
 
     def parse_transcription(x):
@@ -173,7 +184,7 @@ def generating_features(file_IDs, model, dataset_path, df,
                     else:
                         features = get_audio_hidden_states(wave.squeeze(1))
                     features_batch = [get_segmented_output(features[:,x,:,:], segment_df, audio_len).numpy() for x in range(features.shape[1])]
-                    assert len(segment_df[~segment_df['transcription'].str.contains('sil|SIL', na = False)]) == features_batch[0].shape[1]
+                    assert len(segment_df[~segment_df['transcription'].str.contains(r"\[SIL\]", na = False)]) == features_batch[0].shape[1]
                 # features = torch.stack([get_segmented_output(x, segment_df, audio_len) for x in features]).numpy()
             feat_list.extend(features_batch)
             audioname_list.append(file_ID)
@@ -182,7 +193,7 @@ def generating_features(file_IDs, model, dataset_path, df,
 
 class classifierInputDataset(Dataset):
 
-    def __init__(self, features, datasetname = 'thchs30'):
+    def __init__(self, features, datasetname = 'thchs30', tiername = None):
         """_summary_
 
         Args:
@@ -190,7 +201,7 @@ class classifierInputDataset(Dataset):
             datasetname (str, optional): 'thchs30' or 'vivos'. Defaults to 'thchs30'.
         """
         self.file_IDs, self.embs = zip(*features)
-        self.transformed_dataset = save_aligned_dataset_csv(datasetname).to_numpy()
+        self.transformed_dataset = save_aligned_dataset_csv(datasetname, tiername = tiername).to_numpy()
         consonants = ['r', 'sh', 'ch','s','z','j','zh','q','c','x']
         consonants_pattern = '|'.join(consonants)
         vowels = 'aeiou'
@@ -223,32 +234,45 @@ class classifierInputDataset(Dataset):
                 'file_ID': file_ID}
     
 def run_embgen(model_ID = 'facebook/wav2vec2-base', 
+               revision = None,
                datasetname = 'thchs30', 
                save_path = 'classifier_input', 
                flattened = False, 
                cnn = False, 
-               segment_input = False):
+               segment_input = False,
+               tiername = None):
     if 'thchs30' in datasetname:
-        dataset_path = "~/data_thchs30/data/"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(THCHS30_DIR, 'data')
+        extension = 'wav'
 
     elif 'vivos' in datasetname:
         datasetname = 'vivos-train'
-        dataset_path = "~/vivos/train/waves"
-        dataset_path = os.path.expanduser(dataset_path)
+        dataset_path = os.path.join(VIVOS_DIR, 'train', 'waves')
+        extension = 'wav'
+
+    elif 'yor' in datasetname:
+        datasetname = 'yoruba'
+        dataset_path = os.path.join(YORUBA_DIR, 'data')
+        extension = 'flac'
 
     df = save_aligned_dataset_csv(dataset = datasetname,
-                                rewrite=False)
+                                rewrite=False, tiername = tiername)
 
 
     if not os.path.isdir(save_path):
         os.mkdir(save_path)
 
-    modelname = '-'.join(model_ID.split('/')[-2:]).replace('.pt','')
+    # Hub checkpoints carry the branch/revision in the output name so that each
+    # trajectory checkpoint (for example ckpt-5000) gets a distinct file. The
+    # plot parsers recover the step from this name.
+    if revision is not None:
+        modelname = f"{model_ID.split('/')[-1]}-{revision}"
+    else:
+        modelname = '-'.join(model_ID.split('/')[-2:]).replace('.pt','')
     flatten_flag = 'flat' if flattened else ''
     cnn_flag = 'cnn' if cnn else ''
     segment_input_flag = 'segment-input' if segment_input else ''
-    save_name = "_".join(filter(None, (modelname, datasetname, flatten_flag, 'extracted-data', cnn_flag, segment_input_flag))) + '.pt'
+    save_name = "_".join(filter(None, (modelname, datasetname, flatten_flag, 'extracted-data', cnn_flag, segment_input_flag, tiername))) + '.pt'
     save_name = os.path.join(save_path, save_name)
 
     if os.path.isfile(save_name):
@@ -256,8 +280,8 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
     else:
         print(f"generating classifier data input to {save_name}")
         file_IDs = df.file_ID.unique()
-        if os.path.isfile(model_ID) and 'fairseq' in model_ID:
-            model = load_fairseq_model(model_ID)
+        if revision is not None:
+            model = loading_pretrained_model(model_ID, revision=revision)
             tokenizer = None
         else:
             from transformers import AutoModel
@@ -270,9 +294,10 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
                     tokenizer = None                
             except:
                 KeyError(f"{model_ID} is not part of the Huggingface Hub")
-        features = generating_features(file_IDs, model, dataset_path=dataset_path, df=df, flattened=flattened, cnn=cnn, tokenizer=tokenizer, segment_input=segment_input)
-        dataset = classifierInputDataset(features, datasetname = datasetname)
+        features = generating_features(file_IDs, model, dataset_path=dataset_path, df=df, flattened=flattened, cnn=cnn, tokenizer=tokenizer, segment_input=segment_input, extension=extension)
+        dataset = classifierInputDataset(features, datasetname = datasetname, tiername = tiername)
         metadata_dict = {'model_ID': model_ID, 
+                         'revision': revision,
                          'datasetname': datasetname}
         dataset_with_metadata = list(map(lambda x: metadata_dict|x, dataset))
         torch.save(dataset_with_metadata, save_name, pickle_protocol = 4)
@@ -287,6 +312,13 @@ def parse_args():
         type=str,
         default='facebook/wav2vec2-base',
         help="The name of the model to use (via the transformers library).",
+    )
+    parser.add_argument(
+        "--revision",
+        type=str,
+        default=None,
+        help=("Hub branch/revision of the model, e.g. 'ckpt-5000'. When set, "
+              "the model loads as a wav2vec2 checkpoint via loading_pretrained_model."),
     )
     parser.add_argument(
         "--dataset_name",
@@ -308,6 +340,12 @@ def parse_args():
         "--segment_input",
         action = 'store_true',
         help="If use timestamp to slice audio before feeding audio as input to speech models.",
+    )    
+    parser.add_argument(
+        "--tiername",
+        # action = 'store_true',
+        default=None,
+        help="If change tiername to e.g. 'phones' for yoruba.",
     )
     args = parser.parse_args()
 
@@ -318,10 +356,12 @@ def parse_args():
 def main():
     args = parse_args()
     run_embgen(model_ID = args.model_name,
+                              revision = args.revision,
                               datasetname=args.dataset_name,
                               flattened=args.flattened, 
                               cnn = args.cnn, 
-                              segment_input = args.segment_input)
+                              segment_input = args.segment_input,
+                              tiername = args.tiername)
 
 if __name__ == "__main__":
     main()

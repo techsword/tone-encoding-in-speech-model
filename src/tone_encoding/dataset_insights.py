@@ -6,13 +6,20 @@ import numpy as np
 import pandas as pd
 import textgrids
 import torch
-from preprocessing import (check_dimension, read_textgrids,
-                           save_textgrids_to_csvs)
+from tone_encoding.preprocessing import (check_dimension, read_textgrids,
+                                         save_textgrids_to_csvs)
 # from ..embgen import save_textgrids_to_csvs
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
-dataset_path = '~/data_thchs30/data'
+# ---- Corpus locations -----------------------------------------------------
+# Point THCHS30 at your local copy. Default is repo-relative; set the
+# environment variable to your own layout (see README "Data requirements").
+_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+CORPORA_ROOT = os.environ.get('CORPORA_ROOT', os.path.join(_REPO_ROOT, 'corpora'))
+THCHS30_DIR = os.environ.get('THCHS30_DIR', os.path.join(CORPORA_ROOT, 'data_thchs30'))
+
+dataset_path = os.path.join(THCHS30_DIR, 'data')
 
 def add_pinyin_to_df(save_file = 'dataset_insight.csv'):
     if os.path.isfile(save_file):
@@ -56,7 +63,9 @@ def compare_sentence_lengths(x):
 
 class thchsDataset(Dataset):
 
-    def __init__(self, file_IDs, corpus_path =  '~/data_thchs30/data'):
+    def __init__(self, file_IDs, corpus_path = None):
+        if corpus_path is None:
+            corpus_path = os.path.join(THCHS30_DIR, 'data')
         self.file_IDs = file_IDs
         self.corpus_path = os.path.expanduser(corpus_path)
 

@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+src/*.egg-info/
+.python-version
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Generated data and results (regenerable)
+results/
+corpora/
+data/*
+# The epoch-to-updates mapping tables are shipped with the repo.
+!data/epoch_maps/
+embeddings/
+classifier_input/
+audio_features/
+fairseq-pretrained-models/
+slurm_logs/
+
+# Model / serialization artifacts
+*.pt
+*.pkl
+*.pt.*
+*.bin
+
+# Generated aligned datasets (CSV)
+*.csv
+thchs-aligned/
+*.TextGrid
+
+# OS / editor
+.DS_Store
