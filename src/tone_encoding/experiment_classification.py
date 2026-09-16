@@ -101,8 +101,17 @@ def classification_pipeline(X: np.ndarray,
         all_results.append(results)
     return all_results
 
+# Parsed dataset-insight frames, keyed by (path, filter_consonant). The frame
+# is shared across calls; callers copy it before any mutation.
+_DATASET_INSIGHT_CACHE = {}
+
 def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.csv', 
                          filter_consonant = False):
+    cache_key = (os.fspath(dataset_insight_path), bool(filter_consonant))
+    cached_df = _DATASET_INSIGHT_CACHE.get(cache_key)
+    if cached_df is not None:
+        return cached_df
+
     df = pd.read_csv(dataset_insight_path, index_col=0)
     df = df.dropna()
     # df = df[~df['transcription'].str.contains('sil|SIL')]
@@ -122,8 +131,10 @@ def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.c
         
         filtered_df.loc[:,'onset'] = filtered_df.loc[:,'phonetic_wo_tone'].map(lambda x: re.sub(pattern_str, r'\1', x))
         filtered_df.loc[:,'endings'] = filtered_df.loc[:,'phonetic_wo_tone'].map(lambda x: re.sub(pattern_str, r'\2\3', x))
+        _DATASET_INSIGHT_CACHE[cache_key] = filtered_df
         return filtered_df
     df.reset_index(names = 'filtered_index', inplace=True)
+    _DATASET_INSIGHT_CACHE[cache_key] = df
     return df
 
 def get_subclass_consonant_groups():
@@ -229,11 +240,13 @@ def load_input_and_labels_and_mask(all_inputs_arr, all_labels_arr, rs,
 
     return X, y, mask
 
-def process_raw_input_dataset(raw_input_dataset, rs, 
-                              contrast = 'tone', 
-                              mode = 'heldout',
-                              group = None, 
-                              ):
+def concat_raw_input_dataset(raw_input_dataset, contrast = 'tone'):
+    """Concatenate the raw per-file records once, after the consonant filter.
+
+    Returns ``(inputs, labels, column_filter)``. Callers that loop over
+    subclass groups can pass the result as ``base`` to
+    ``process_raw_input_dataset`` instead of concatenating again.
+    """
 
     contrast_dict = {'tone': {'column_filter':'phonetic_wo_tone',
                             'filter_consonant': False,
@@ -259,6 +272,19 @@ def process_raw_input_dataset(raw_input_dataset, rs,
         consonants = ['r', 'sh', 'ch','s','z','j','zh','q','c','x']
         consonant_filter_indices = np.isin(labels, consonants)
         inputs, labels, column_filter = inputs[consonant_filter_indices], labels[consonant_filter_indices], column_filter[consonant_filter_indices]
+
+    return inputs, labels, column_filter
+
+def process_raw_input_dataset(raw_input_dataset, rs,
+                              contrast = 'tone',
+                              mode = 'heldout',
+                              group = None,
+                              base = None,
+                              ):
+
+    if base is None:
+        base = concat_raw_input_dataset(raw_input_dataset, contrast = contrast)
+    inputs, labels, column_filter = base
 
     if mode == 'alldata':
         mask = np.zeros(1)
@@ -351,11 +377,13 @@ def run_subclass(emb_file = './classifier_input/facebook-wav2vec2-base_thchs30_e
         raw_input_dataset = torch.load(emb_file)
         experiment_results = []
         groups = get_subclass_groups(contrast)
+        # Concatenate the raw records once and reuse them for every group.
+        base = concat_raw_input_dataset(raw_input_dataset, contrast = contrast)
         for group in tqdm(groups,desc='Groupings'):
             tqdm.write(f"doing {contrast} subclass classification on {'-'.join(group)}")
             X, y, mask_array = process_raw_input_dataset(raw_input_dataset, rs, 
                                             contrast = contrast, 
-                                            mode = mode,group = group)
+                                            mode = mode,group = group, base = base)
 
             assert len(X) == len(y)
 
