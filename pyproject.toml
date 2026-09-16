@@ -24,6 +24,9 @@ dependencies = [
     "scikit-learn==1.3.2",
     "scipy==1.11.4",
     "seaborn==0.13.0",
+    # librosa 0.10.1 imports pkg_resources at import time. setuptools 82 removed
+    # that module, so cap the provider below 82.
+    "setuptools<82",
     "tqdm==4.66.1",
     "transformers==4.46.3",
 ]
