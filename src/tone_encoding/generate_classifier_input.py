@@ -120,7 +120,7 @@ def generating_features(file_IDs, model, dataset_path, df,
     model = model.to(device)
     model.eval()
     
-    glob_list = [x for x in glob.glob(dataset_path + '/**/*' + extension, recursive = True)]
+    glob_list = [x for x in glob.glob(os.path.join(dataset_path, '**/*' + extension), recursive = True)]
     if flattened:
         glob_list = [x for x in glob_list if 'flat' in x]
     else:

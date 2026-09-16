@@ -110,7 +110,7 @@ def vivos_save_dataset(save_csv = 'vivos_train_aligned.csv',
     if os.path.isfile(save_csv) and not rewrite:
         df = pd.read_csv(save_csv)
     else:
-        absolute_tg_files = glob.glob(os.path.expanduser(alignment_path) + "/**/*.TextGrid", recursive=True)
+        absolute_tg_files = glob.glob(os.path.join(os.path.expanduser(alignment_path), "**/*.TextGrid"), recursive=True)
         processed_textgrids = [np.array(read_textgrids(tg_file)) for tg_file in tqdm(absolute_tg_files, desc='Reading textgrids')]
         vphon_out = read_vphon_out().to_numpy()
         def get_phonetic(processed_textgrid):
