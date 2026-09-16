@@ -100,8 +100,17 @@ def classification_pipeline(X: np.ndarray,
         all_results.append(results)
     return all_results
 
+# Parsed dataset-insight frames, keyed by (path, filter_consonant). The frame
+# is shared across calls; callers copy it before any mutation.
+_DATASET_INSIGHT_CACHE = {}
+
 def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.csv', 
                          filter_consonant = False):
+    cache_key = (os.fspath(dataset_insight_path), bool(filter_consonant))
+    cached_df = _DATASET_INSIGHT_CACHE.get(cache_key)
+    if cached_df is not None:
+        return cached_df
+
     df = pd.read_csv(dataset_insight_path, index_col=0)
     df = df.dropna()
     df = df[~df['transcription'].str.contains('sil|SIL')]
@@ -120,8 +129,10 @@ def read_dataset_insight(dataset_insight_path = './thchs30_transformed_dataset.c
         
         filtered_df.loc[:,'onset'] = filtered_df.loc[:,'phonetic_wo_tone'].map(lambda x: re.sub(pattern_str, r'\1', x))
         filtered_df.loc[:,'endings'] = filtered_df.loc[:,'phonetic_wo_tone'].map(lambda x: re.sub(pattern_str, r'\2\3', x))
+        _DATASET_INSIGHT_CACHE[cache_key] = filtered_df
         return filtered_df
     df.reset_index(names = 'filtered_index', inplace=True)
+    _DATASET_INSIGHT_CACHE[cache_key] = df
     return df
 
 def get_subclass_consonant_groups():

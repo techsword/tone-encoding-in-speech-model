@@ -79,17 +79,9 @@ def get_hidden_cnn(input_values, model):
     hidden_state.requires_grad = False
     layer = 0
     for conv_layer in cnn_feature_encoder.conv_layers:
-
-        def create_custom_forward(module):
-            def custom_forward(*inputs):
-                return module(*inputs)
-
-            return custom_forward
-
-        hidden_state = torch.utils.checkpoint.checkpoint(
-            create_custom_forward(conv_layer),
-            hidden_state,
-        )
+        # This runs under torch.inference_mode, so no autograd graph exists and
+        # checkpointing saves no memory. Call the convolution directly.
+        hidden_state = conv_layer(hidden_state)
         hidden_states[layer] = hidden_state
         layer +=1
 
@@ -109,9 +101,12 @@ def get_hidden_cnn(input_values, model):
     averaged_cnn_layers = []
     for layer_idx in range(7):
         window_size = window_sizes[layer_idx]
-        windows = torch.stack([hidden_states[layer_idx][0][:,window_size * y:window_size * (y + 1)] for y in range(num_frames)])
-        windows = windows.movedim(-1,0)
-        averaged_windows = torch.mean(windows, dim=0).cpu()
+        layer_state = hidden_states[layer_idx][0]
+        # Non-overlapping windows along the time axis. This reproduces the
+        # per-window slice stack without a Python list of tensors per layer.
+        windows = layer_state.unfold(dimension=-1, size=window_size, step=window_size)
+        windows = windows[..., :num_frames, :]
+        averaged_windows = torch.mean(windows, dim=-1).movedim(0, -1).cpu()
         averaged_cnn_layers.append(averaged_windows)
     return torch.stack(averaged_cnn_layers)
 
@@ -232,7 +227,21 @@ class classifierInputDataset(Dataset):
                 'split_phonetic' : split_phonetic, 
                 'phonetic_wo_tone':phonetic_wo_tone, 
                 'file_ID': file_ID}
-    
+
+def _build_metadata_records(metadata_dict, dataset, chunk_size = 1024):
+    """Build the per-record metadata dicts in bounded chunks.
+
+    The result equals ``[metadata_dict | record for record in dataset]``
+    (same dicts, same order). Chunking bounds the transient list and lets the
+    caller drop the feature store before serialization.
+    """
+    records = []
+    dataset_len = len(dataset)
+    for start in range(0, dataset_len, chunk_size):
+        stop = min(start + chunk_size, dataset_len)
+        records.extend(metadata_dict | dataset[i] for i in range(start, stop))
+    return records
+
 def run_embgen(model_ID = 'facebook/wav2vec2-base', 
                revision = None,
                datasetname = 'thchs30', 
@@ -299,8 +308,10 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
         metadata_dict = {'model_ID': model_ID, 
                          'revision': revision,
                          'datasetname': datasetname}
-        dataset_with_metadata = list(map(lambda x: metadata_dict|x, dataset))
-        torch.save(dataset_with_metadata, save_name, pickle_protocol = 4)
+        dataset_with_metadata = _build_metadata_records(metadata_dict, dataset)
+        del dataset, features
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(dataset_with_metadata, save_name, pickle_protocol=5, _use_new_zipfile_serialization=False)
         print(f"finished!")
     
     return save_name

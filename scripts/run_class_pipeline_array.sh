@@ -46,7 +46,7 @@ srun python -m tone_encoding.classification_pipeline --model_name $current_name 
 srun python -m tone_encoding.classification_pipeline --model_name $current_name --mode 'heldout' --contrast 'consonant' --subclass
 
 # Running the basic experiment on Vietnamese data 'vivos'
-srun python -m tone_encoding.classification_pipeline --model_name $current_name --dataset 'vivos' --mode 'heldout' --contrast 'tone'
+srun python -m tone_encoding.classification_pipeline --model_name $current_name --dataset_name 'vivos' --mode 'heldout' --contrast 'tone'
 
 # Check if the current name is in the further_experiment array
 if [[ " ${further_experiment[@]} " =~ " ${current_name} " ]]; then

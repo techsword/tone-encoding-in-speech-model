@@ -100,7 +100,8 @@ def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_featu
             )
         else:
             out = [extract_audio_features(x) for x in tqdm(all_audio)]
-        torch.save(out, savename)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(out, savename, pickle_protocol=5, _use_new_zipfile_serialization=False)
     return savename
 
 def process_extracted_audio_features(audio_features_file = './audio_features/thchs30_audio_feats.pt',
@@ -211,7 +212,8 @@ def process_extracted_audio_features(audio_features_file = './audio_features/thc
         assert len(all_inputs_array) == len(all_labels_array)
         savename = f'data/{audio_feature_name}_thchs30_extracted-data.pt'
         logging.info(f'Saving to {savename}')
-        torch.save((audio_feature_name, datasetname, all_inputs_array, all_labels_array), savename, pickle_protocol = 4)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save((audio_feature_name, datasetname, all_inputs_array, all_labels_array), savename, pickle_protocol=5, _use_new_zipfile_serialization=False)
 
 def pad_along_axis(array: np.ndarray, target_length: int, axis: int = 0) -> np.ndarray:
 
@@ -270,7 +272,8 @@ def generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features
     else:
         print(f"generating mfcc to {mfcc_savename}")
         mfcc_dict = mfcc_generation(all_audio)
-        torch.save(mfcc_dict, mfcc_savename)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(mfcc_dict, mfcc_savename, pickle_protocol=5, _use_new_zipfile_serialization=False)
 
 
     f0_savename = os.path.join(save_path, f'{datasetname}_f0s.pt')
@@ -286,7 +289,8 @@ def generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features
             out = [f0_job(x) for x in tqdm(all_audio)]
 
         f0_dict = dict(out)
-        torch.save(f0_dict, f0_savename)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(f0_dict, f0_savename, pickle_protocol=5, _use_new_zipfile_serialization=False)
 
 def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_feature = 'f0', flattened = False, parallel = True,aggregate_method = 'avgpool'):
     """_summary_
@@ -357,8 +361,10 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
 
     assert len(all_labels_array) == len(all_inputs_array)
 
+    # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
     torch.save({'inputs': all_inputs_array, 'labels': all_labels_array},
-               os.path.join(save_path, f'{datasetname}_{audio_feature}_processed.pt'))
+               os.path.join(save_path, f'{datasetname}_{audio_feature}_processed.pt'),
+               pickle_protocol=5, _use_new_zipfile_serialization=False)
 
 
 
@@ -368,7 +374,9 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
         all_inputs_array = np.expand_dims(all_inputs_array, axis = 1)
 
     data_savename = f'data/{audio_feature}_{datasetname}_extracted-data.pt'
-    torch.save((audio_feature, datasetname, all_inputs_array, all_labels_array), data_savename)
+    # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+    torch.save((audio_feature, datasetname, all_inputs_array, all_labels_array), data_savename,
+               pickle_protocol=5, _use_new_zipfile_serialization=False)
 
 def main():
     # generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True)
