@@ -300,7 +300,8 @@ def run_embgen(model_ID = 'facebook/wav2vec2-base',
                          'revision': revision,
                          'datasetname': datasetname}
         dataset_with_metadata = list(map(lambda x: metadata_dict|x, dataset))
-        torch.save(dataset_with_metadata, save_name, pickle_protocol = 4)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(dataset_with_metadata, save_name, pickle_protocol=5, _use_new_zipfile_serialization=False)
         print(f"finished!")
     
     return save_name

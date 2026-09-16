@@ -98,7 +98,8 @@ def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_featu
             )
         else:
             out = [extract_audio_features(x) for x in tqdm(all_audio)]
-        torch.save(out, savename)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(out, savename, pickle_protocol=5, _use_new_zipfile_serialization=False)
     return 
 
 def slice_extracted_audio_features(datasetname = 'thchs30',
@@ -229,7 +230,8 @@ def save_to_classifier_input(file_IDs, feat_list,
 
         dataset = audiofeatureDataset(file_IDs, feat_list, model_ID=model_ID, datasetname=datasetname)
         dataset_ready_to_save = list(dataset)
-        torch.save(dataset_ready_to_save, save_name, pickle_protocol = 4)
+        # Protocol 5 + legacy serialization: lower peak RAM, no 4 GiB limit (workstation-validated).
+        torch.save(dataset_ready_to_save, save_name, pickle_protocol=5, _use_new_zipfile_serialization=False)
         
 
 def main():
