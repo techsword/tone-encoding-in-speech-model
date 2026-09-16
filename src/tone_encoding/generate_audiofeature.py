@@ -1,3 +1,4 @@
+import argparse
 import glob
 import logging
 import math
@@ -27,6 +28,19 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 dataset_path = os.path.join(THCHS30_DIR, 'data')
 file_ID = "A2_54.wav"
 audio_file_path = os.path.join(dataset_path,file_ID)
+
+def default_n_jobs():
+    """Return a worker count for joblib.
+
+    Prefer SLURM_CPUS_PER_TASK, else the CPUs this process may run on.
+    """
+    slurm_cpus = os.environ.get('SLURM_CPUS_PER_TASK')
+    if slurm_cpus and slurm_cpus.isdigit():
+        return int(slurm_cpus)
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        return os.cpu_count() or 1
 
 def pad_along_axis(array: np.ndarray, target_length: int, axis: int = 0) -> np.ndarray:
     pad_size = target_length - array.shape[axis]
@@ -77,7 +91,7 @@ def extract_audio_features(audio_file_path:str or os.PathLike):
                                             #    'librosa_f0':y_f0,
                                                }}
 
-def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True):
+def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_features', flattened = False, parallel = True, n_jobs = None):
 
     if 'thchs30' in datasetname:
         dataset_path = os.path.join(THCHS30_DIR, 'data')
@@ -93,8 +107,10 @@ def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_featu
         print(f'{savename} exists already! skipping')
     else:
         if parallel:
-            out = joblib.Parallel(n_jobs=18, verbose=1)(
-                joblib.delayed(extract_audio_features)(i) for i in tqdm(all_audio[:])
+            if n_jobs is None:
+                n_jobs = default_n_jobs()
+            out = joblib.Parallel(n_jobs=n_jobs, verbose=1)(
+                joblib.delayed(extract_audio_features)(i) for i in tqdm(all_audio)
             )
         else:
             out = [extract_audio_features(x) for x in tqdm(all_audio)]
@@ -232,10 +248,22 @@ def save_to_classifier_input(file_IDs, feat_list,
         torch.save(dataset_ready_to_save, save_name, pickle_protocol = 4)
         
 
-def main():
+def parse_args():
+    parser = argparse.ArgumentParser(description="Extract f0/MFCC audio features with a parallel joblib pool")
+    parser.add_argument(
+        "--n_jobs",
+        type=int,
+        default=None,
+        help=("Number of parallel workers. Defaults to SLURM_CPUS_PER_TASK, "
+              "or the number of CPUs available to this process."),
+    )
+    return parser.parse_args()
+
+
+def main(n_jobs = None):
     generated_classifier_input_save_path = 'classifier_input'
     for datasetname in ['thchs30', 'vivos-train']:
-        audio_features_file = run_extract_audio_features(datasetname = datasetname, save_path = 'audio_features', flattened = False, parallel = True)
+        audio_features_file = run_extract_audio_features(datasetname = datasetname, save_path = 'audio_features', flattened = False, parallel = True, n_jobs = n_jobs)
         existing_files = glob.glob(generated_classifier_input_save_path + f"/*f0*{datasetname}*.pt")
         if len(existing_files) != 0:
             print(f'{datasetname} has saved audio features like {existing_files} already')
@@ -252,4 +280,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(n_jobs = args.n_jobs)
