@@ -77,7 +77,7 @@ def save_aligned_dataset_csv(dataset = 'thchs30',
     if os.path.isfile(save_csv) and not rewrite:
         no_sil_df = pd.read_csv(transformed_dataset)
     else:
-        absolute_tg_files = glob.glob(os.path.expanduser(alignment_path) + "/**/*.TextGrid", recursive=True)
+        absolute_tg_files = glob.glob(os.path.join(os.path.expanduser(alignment_path), "**/*.TextGrid"), recursive=True)
         processed_textgrids = [np.array(read_textgrids(tg_file, tiername)) for tg_file in tqdm(absolute_tg_files, desc='Reading textgrids')]
 
         if 'vivos' in alignment_path.lower():
@@ -103,7 +103,7 @@ def save_aligned_dataset_csv(dataset = 'thchs30',
         elif 'yoruba' in alignment_path.lower():
             dataset_path = os.path.join(YORUBA_DIR, 'data')
             trn_ending = ".txt"
-            all_transcription = glob.glob(os.path.expanduser(dataset_path + "**/*/*" +  trn_ending))
+            all_transcription = glob.glob(os.path.join(os.path.expanduser(dataset_path), "**/*/*" + trn_ending))
             def get_phonetic(tg_out):
                 tg_out = np.array(tg_out)
                 file_ID = tg_out[0,0]

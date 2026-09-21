@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import parselmouth
 import torch
+from tone_encoding.generate_audiofeature import find_wav_files
 from tone_encoding.preprocessing import thchs_save_dataset
 from scipy.signal import resample
 from tqdm.auto import tqdm
@@ -89,7 +90,7 @@ def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_featu
 
     if not os.path.isdir(save_path):
         os.mkdir(save_path)
-    all_audio = [file for file in glob.glob(dataset_path+"**/*.wav" , recursive=True) if 'flat' not in file]
+    all_audio = find_wav_files(dataset_path)
     savename = os.path.join(save_path, f'{datasetname}_audio_feats.pt')
     if os.path.isfile(savename):
         print(f'{savename} exists already! skipping')
@@ -131,8 +132,8 @@ def process_extracted_audio_features(audio_features_file = './audio_features/thc
     elif 'vivos' in datasetname:
         dataset_path = os.path.join(VIVOS_DIR, 'train')
         datasetname = 'vivos-train'
-    glob_list = [x for x in glob.glob(dataset_path + '/**/*' + extension, recursive = True) if 'flat' not in x]
-    tg_list = [x for x in glob.glob(dataset_path + '/**/*' + '.TextGrid', recursive = True)]
+    glob_list = [x for x in glob.glob(os.path.join(dataset_path, '**/*' + extension), recursive = True) if 'flat' not in x]
+    tg_list = [x for x in glob.glob(os.path.join(dataset_path, '**/*' + '.TextGrid'), recursive = True)]
 
     #TODO: make this function prettier and more efficient
     for tg_file in tqdm(tg_list):
@@ -264,7 +265,7 @@ def generate_audio_features(datasetname = 'thchs30', save_path = 'audio_features
         os.mkdir(save_path)
 
 
-    all_audio = [file for file in glob.glob(dataset_path+"**/*.wav" , recursive=True) if 'flat' not in file]
+    all_audio = find_wav_files(dataset_path)
     
     mfcc_savename = os.path.join(save_path, f'{datasetname}_mfccs.pt')
     if os.path.isfile(mfcc_savename):
@@ -308,7 +309,7 @@ def process_data(datasetname = 'thchs30', save_path = 'audio_features/', audio_f
         file = [x for x in glob.glob(save_path+'*.pt') if datasetname in x and audio_feature in x and 'processed' not in x]
         assert len(file) == 1
         raw_dataset = torch.load(file[0])
-        all_audio = [file for file in glob.glob(dataset_path+"**/*.wav" , recursive=True) if 'flat' not in file]
+        all_audio = find_wav_files(dataset_path)
         _, sr = librosa.load(all_audio[0])
         df = thchs_save_dataset(rewrite=False)
 

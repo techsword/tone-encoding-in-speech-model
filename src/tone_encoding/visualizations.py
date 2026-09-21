@@ -58,7 +58,7 @@ def subclass_label_func(label):
         return label
 
 def read_results(results_path = 'results/'):
-    result_files = glob.glob(results_path + "/**/*.pkl", recursive=True)
+    result_files = glob.glob(os.path.join(results_path, "**/*.pkl"), recursive=True)
     all_results = []
     for result_file in result_files:
         with open(result_file, 'rb') as file:

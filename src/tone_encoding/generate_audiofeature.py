@@ -42,6 +42,20 @@ def default_n_jobs():
     except AttributeError:
         return os.cpu_count() or 1
 
+def find_wav_files(dataset_path):
+    """Return every .wav file under ``dataset_path``, recursively.
+
+    THCHS-30 stores wav files directly in its data directory. VIVOS stores
+    them one level deeper, under ``train/waves/<speaker>/``. Build the
+    recursive pattern with ``os.path.join``. Plain concatenation such as
+    ``dataset_path + "**/*.wav"`` drops the separator and collapses the
+    pattern to ``waves*/*.wav``. That still matches THCHS-30 by accident,
+    but finds zero VIVOS files. Files whose path contains ``flat`` are
+    excluded.
+    """
+    pattern = os.path.join(dataset_path, "**/*.wav")
+    return [f for f in glob.glob(pattern, recursive=True) if 'flat' not in f]
+
 def pad_along_axis(array: np.ndarray, target_length: int, axis: int = 0) -> np.ndarray:
     pad_size = target_length - array.shape[axis]
     if pad_size <= 0:
@@ -101,7 +115,7 @@ def run_extract_audio_features(datasetname = 'thchs30', save_path = 'audio_featu
 
     if not os.path.isdir(save_path):
         os.mkdir(save_path)
-    all_audio = [file for file in glob.glob(dataset_path+"**/*.wav" , recursive=True) if 'flat' not in file]
+    all_audio = find_wav_files(dataset_path)
     savename = os.path.join(save_path, f'{datasetname}_audio_feats.pt')
     if os.path.isfile(savename):
         print(f'{savename} exists already! skipping')
